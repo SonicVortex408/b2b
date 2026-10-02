@@ -7,6 +7,8 @@ import { PURPOSE_LABEL } from "@/lib/engine";
 import { DAY_END, DAY_START, fmtDate, fmtTime, pad } from "@/lib/time";
 import { HOLDING, type Booking, type DecisionKind } from "@/lib/types";
 import { roomName, useStore } from "@/store/useStore";
+import { forecast } from "@/lib/forecast";
+import { AdminTools, Badges, CounterPicker, Negotiations, Notifications, Swaps } from "./Collab";
 import { ScoreBars } from "./ScoreBars";
 
 export function PanelDrawer() {
@@ -18,7 +20,7 @@ export function PanelDrawer() {
       gsap.from(ref.current, { xPercent: 105, duration: 0.45, ease: "power3.out" });
   }, [panel]);
   if (panel === "none") return null;
-  const titles = { bookings: "My bookings", approvals: "Approver console", conflicts: "Conflict center", chaos: "Digital Twin · Simulate Chaos", admin: "Analytics" } as const;
+  const titles = { bookings: "My bookings", approvals: "Approver console", conflicts: "Conflict center", chaos: "Digital Twin · Simulate Chaos", admin: "Admin & analytics", notifications: "Notifications", swaps: "Swap marketplace" } as const;
   return (
     <aside ref={ref} className="surface absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l shadow-2xl md:w-[460px]" aria-label={titles[panel]}>
       <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-3">
@@ -32,7 +34,14 @@ export function PanelDrawer() {
         {panel === "approvals" && <Approvals />}
         {panel === "conflicts" && <Conflicts />}
         {panel === "chaos" && <Chaos />}
-        {panel === "admin" && <Analytics />}
+        {panel === "admin" && (
+          <div className="space-y-8">
+            <AdminTools />
+            <Analytics />
+          </div>
+        )}
+        {panel === "notifications" && <Notifications />}
+        {panel === "swaps" && <Swaps />}
       </div>
     </aside>
   );
@@ -152,6 +161,8 @@ function MyBookings() {
   const act = useStore((s) => s.act);
   const toast = useStore((s) => s.toast);
   const me = useStore((s) => s.me);
+  const dispatch = useStore((s) => s.dispatch);
+  const engineSwaps = useStore((s) => s.engine.swaps);
   const mine = bookings.filter((b) => b.requester === me).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   const upcoming = mine.filter((b) => HOLDING.includes(b.status));
   const past = mine.filter((b) => !HOLDING.includes(b.status));
@@ -161,6 +172,8 @@ function MyBookings() {
       <p className="text-xs text-muted">
         Showing bookings for <b>{me}</b>{role ? ` (${role})` : ""}. Click a room on the map to book.
       </p>
+      <Badges />
+      <CalendarFeed />
       <section>
         <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Upcoming ({upcoming.length})</h3>
         <ul className="space-y-2">
@@ -176,6 +189,11 @@ function MyBookings() {
               {b.status !== "checked_in" && <Btn onClick={() => act("cancel", b.id)}>Cancel</Btn>}
               {b.status === "confirmed" && <Btn onClick={() => act("noshow", b.id)}>Simulate no-show</Btn>}
               <Btn onClick={() => ics(b)}>.ics</Btn>
+              {!engineSwaps.some((w) => w.bookingId === b.id && w.status === "listed") ? (
+                <Btn onClick={() => dispatch({ type: "swap_list", bookingId: b.id })}>List for swap</Btn>
+              ) : (
+                <span className="self-center text-[11px] text-inuse">on swap market</span>
+              )}
               {qr === b.id && (
                 <div className="mt-2 w-full">
                   <QrToken
@@ -246,6 +264,7 @@ function Approvals() {
                 Reject
               </Btn>
               {!escalated.has(b.id) && <Btn onClick={() => act("escalate", b.id)}>Escalate</Btn>}
+              <CounterPicker b={b} />
             </BookingRow>
           );
         })}
@@ -299,6 +318,10 @@ function Conflicts() {
       <section className="rounded-lg bg-black/[.03] p-3 text-xs leading-relaxed">
         <b>How decisions are made.</b> Rules gate (blackouts, eligibility, capacity, advance window) → priority score{" "}
         <code className="font-mono">0.40·purpose + 0.20·role + 0.15·urgency + 0.15·fairness + 0.10·usage</code>. Beat the holder by ≥15 → bump with 3 rebooking offers. Within 15 → negotiation. Capacity allows → share probe. The exclusion constraint is the final arbiter.
+      </section>
+      <section>
+        <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Negotiations</h3>
+        <Negotiations />
       </section>
       <section>
         <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Fairness ledger (bumps suffered)</h3>
@@ -399,7 +422,7 @@ function Analytics() {
       <div className="grid grid-cols-3 gap-2">
         <Stat label="Utilisation (14d)" value={`${util}%`} />
         <Stat label="Ghost-booking rate" value={`${ghostRate}%`} />
-        <Stat label="Forecast: labs next wk" value="~88%" />
+        <Stat label="Forecast: labs next wk" value={`~${Math.round((forecast(engine, today, ["lab"])[0]?.nextWeekAvg ?? 0) * 100)}%`} />
       </div>
       <section>
         <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Utilisation heatmap · Level {floor} · last 14 days</h3>
@@ -464,6 +487,31 @@ const Row = ({ label, cells }: { label: string; cells: number[] }) => (
     ))}
   </>
 );
+
+/** Subscribable per-user calendar feed (Supabase mode); demo mode falls back to per-booking .ics files. */
+function CalendarFeed() {
+  const remote = useStore((s) => s.remote);
+  const token = useStore((s) => s.session?.token);
+  const [url, setUrl] = useState<string | null>(null);
+  if (!remote || !token) return null;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      {url ? (
+        <input readOnly value={url} onFocus={(e) => e.target.select()} className="min-w-0 flex-1 rounded border border-[var(--line)] bg-transparent px-2 py-1 font-mono text-[10px]" aria-label="Calendar feed URL" />
+      ) : (
+        <Btn
+          onClick={async () => {
+            const r = await fetch("/api/calendar/link", { headers: { authorization: `Bearer ${token}` } });
+            const d = await r.json();
+            if (d.url) setUrl(d.url);
+          }}
+        >
+          Get calendar subscription link
+        </Btn>
+      )}
+    </div>
+  );
+}
 
 function addDaysLocal(date: string, n: number) {
   const d = new Date(`${date}T00:00:00Z`);

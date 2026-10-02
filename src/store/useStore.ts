@@ -6,10 +6,11 @@ import * as E from "@/lib/engine";
 import { CLUBS, FACULTY, rng, seedState, STUDENTS } from "@/lib/seed";
 import { addDays, DAY_END, DAY_START, nowMinutes, todayISO } from "@/lib/time";
 import { browserClient, REMOTE } from "@/lib/remote/client";
+import { ActionError, authorize, runAction, type Action, type ActionOutput } from "@/lib/actions";
 import type { Op, OpResult } from "@/lib/remote/ops";
 import { HOLDING, type BookingRequest, type BookResult, type Purpose, type Role } from "@/lib/types";
 
-export type Panel = "none" | "bookings" | "approvals" | "conflicts" | "chaos" | "admin";
+export type Panel = "none" | "bookings" | "approvals" | "conflicts" | "chaos" | "admin" | "notifications" | "swaps";
 export type ColorMode = "state" | "type";
 
 export const ME: Record<Role, string> = {
@@ -56,6 +57,8 @@ interface State {
   remote: boolean;
   session: Session | null;
   me: string;
+  readIds: string[];
+  markRead: (ids: string[]) => void;
   engine: E.EngineState;
   today: string;
   nowMin: number;
@@ -84,6 +87,8 @@ interface State {
   waitlist: (req: Omit<BookingRequest, "requester" | "role">) => Promise<void>;
   reset: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Run any engine action (negotiation, swap, counter, hold, claim, rules…) locally or via the API. */
+  dispatch: (a: Action, quiet?: boolean) => Promise<ActionOutput & { error?: string }>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   runChaos: () => void;
@@ -165,7 +170,22 @@ export const useStore = create<State>((set, get) => {
     remote: REMOTE,
     session: null,
     me: REMOTE ? "Guest" : ME.student,
-    engine: { bookings: [], events: [], bumps: {}, waitlist: [], blackouts: [], points: {}, seq: 0 },
+    readIds: (() => {
+      try {
+        return JSON.parse(localStorage.getItem("xie-read") ?? "[]");
+      } catch {
+        return [];
+      }
+    })(),
+    markRead: (ids) =>
+      set((st) => {
+        const readIds = [...new Set([...st.readIds, ...ids])].slice(-500);
+        try {
+          localStorage.setItem("xie-read", JSON.stringify(readIds));
+        } catch {}
+        return { readIds };
+      }),
+    engine: E.withDefaults({}),
     today: "",
     nowMin: DAY_START,
     date: "",
@@ -196,6 +216,7 @@ export const useStore = create<State>((set, get) => {
         sb.channel("live-map")
           .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, scheduleRefresh)
           .on("postgres_changes", { event: "INSERT", schema: "public", table: "conflict_events" }, scheduleRefresh)
+          .on("postgres_changes", { event: "*", schema: "public", table: "engine_docs" }, scheduleRefresh)
           .subscribe();
         return;
       }
@@ -204,14 +225,14 @@ export const useStore = create<State>((set, get) => {
         const raw = localStorage.getItem(KEY);
         if (raw) {
           const saved = JSON.parse(raw);
-          if (saved.today === today) engine = saved.engine;
+          if (saved.today === today) engine = E.withDefaults(saved.engine);
         }
       } catch {}
       engine ??= seedState(today, nowMin);
       const time = Math.min(DAY_END - 15, Math.max(DAY_START, Math.floor(nowMin / 15) * 15));
       set({ ready: true, engine, today, nowMin, date: today, time });
       save(engine, today);
-      channel?.addEventListener("message", (e) => set({ engine: e.data.engine }));
+      channel?.addEventListener("message", (e) => set({ engine: E.withDefaults(e.data.engine) }));
     },
 
     tick() {
@@ -221,7 +242,11 @@ export const useStore = create<State>((set, get) => {
         void exec({ type: "sweep" });
         return;
       }
-      const n = mutate((s) => E.sweepNoShows(s, ctxOf(get())));
+      const n = mutate((s) => {
+        const before = s.bookings.filter((b) => b.status === "no_show").length;
+        runAction(s, { type: "sweep" }, { name: "system", role: "admin" }, ctxOf(get()));
+        return s.bookings.filter((b) => b.status === "no_show").length - before;
+      });
       if (n) get().toast({ title: "Ghost bookings released", body: `${n} room(s) freed after missed QR check-in.`, tone: "warn" });
 
       // Simulated realtime feed from other users (Skedda-style "@Alicia booked Desk 6").
@@ -312,12 +337,34 @@ export const useStore = create<State>((set, get) => {
         if (!get().ready) get().toast({ title: "Can't reach the database", body: "Check the Supabase env vars and that migrations ran (npm run db:setup).", tone: "bad" });
         return;
       }
-      const next: E.EngineState = await res.json();
+      const next = E.withDefaults(await res.json());
       // Pulse rooms whose bookings changed elsewhere (other users, other tabs, chat channels).
       const prev = new Map(get().engine.bookings.map((b) => [b.id, b.status]));
       const changed = next.bookings.filter((b) => prev.size && prev.get(b.id) !== b.status).flatMap((b) => b.roomIds);
       set({ engine: next });
       if (changed.length) flash([...new Set(changed)], "info");
+    },
+
+    async dispatch(a, quiet) {
+      const st = get();
+      const actor = { name: st.me, role: st.role };
+      let out: ActionOutput & { error?: string };
+      if (REMOTE) {
+        if (!st.session) out = { error: "Sign in first." };
+        else {
+          const r = await exec(a as Op);
+          out = { result: r.result, message: r.message ?? r.text, error: r.error };
+        }
+      } else {
+        try {
+          out = mutate((s) => runAction(s, authorize(a, actor, s), actor, ctxOf(st)));
+        } catch (e) {
+          out = { error: e instanceof ActionError ? e.message : String(e) };
+        }
+      }
+      if (!quiet && (out.error || out.message))
+        get().toast({ title: out.error ? "Couldn't do that" : "Done", body: out.error ?? out.message!, tone: out.error ? "bad" : "ok" });
+      return out;
     },
 
     async signIn(email, password) {
@@ -513,4 +560,10 @@ function fmt(min: number) {
 }
 
 export const roomName = (id: string) => ROOM_BY_ID.get(id)?.name ?? id;
+
+/** Notices addressed to me, to everyone, or to my role (admins also see approver traffic). */
+export function myNotices(s: Pick<State, "engine" | "me" | "role">) {
+  const roles = s.role === "admin" ? ["role:admin", "role:approver"] : [`role:${s.role}`];
+  return s.engine.notices.filter((n) => n.to === s.me || n.to === "*" || roles.includes(n.to));
+}
 export { addDays };

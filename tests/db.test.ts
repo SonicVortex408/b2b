@@ -4,7 +4,7 @@
  */
 import { PGlite } from "@electric-sql/pglite";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ALL_ROOMS } from "@/data/campus";
 import type { EngineState } from "@/lib/engine";
@@ -25,6 +25,7 @@ class PgliteStorage implements Storage {
       ledger: await q("select to_jsonb(l) j from fairness_ledger l"),
       waitlist: await q("select to_jsonb(w) j from waitlist w"),
       blackouts: await q("select to_jsonb(b) j from blackouts b"),
+      docs: await q("select jsonb_build_object('kind', kind, 'id', id, 'data', data) j from engine_docs"),
     };
     return rowsToState(rows);
   }
@@ -61,10 +62,12 @@ beforeAll(async () => {
     create function auth.uid() returns uuid language sql as 'select null::uuid';
     create role anon; create role authenticated;
   `);
-  const sql = readFileSync("supabase/migrations/0001_init.sql", "utf8")
-    .replace("create extension if not exists vector;", "") // pgvector isn't bundled with PGlite
-    .replace("vector(1536)", "real[]");
-  await db.exec(sql);
+  for (const f of readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")).sort()) {
+    const sql = readFileSync(`supabase/migrations/${f}`, "utf8")
+      .replace("create extension if not exists vector;", "") // pgvector isn't bundled with PGlite
+      .replace("vector(1536)", "real[]");
+    await db.exec(sql);
+  }
   await db.exec(`insert into floors values (1,'First'),(2,'Second'),(3,'Third');`);
   for (const r of ALL_ROOMS.filter((x) => x.bookable))
     await db.query("insert into resources (id,name,type,floor,capacity,svg_path_id,requires_approval) values ($1,$2,$3,$4,$5,$1,$6)", [r.id, r.name, r.kind, r.floor, r.capacity ?? 0, !!r.requiresApproval]);
@@ -132,5 +135,68 @@ describe("database write path", () => {
       { who: "Next Person", status: "confirmed" },
     ]);
     expect((await db.query("select * from waitlist")).rows).toHaveLength(0);
+  });
+
+  it("negotiation accept shifts the holder and books the requester atomically", async () => {
+    const mk = (who: string, p: Partial<BookingRequest>) => applyOp(storage, { type: "book", req: req({ roomIds: ["F1-07"], start: 11 * 60, end: 12 * 60, attendees: 20, ...p }) }, { name: who, role: "faculty" }, ctx);
+    await mk("Holder H", { purpose: "academic_class" });
+    await mk("Asker A", { purpose: "academic_class" }); // equal priority -> negotiation
+    const s = await storage.load();
+    const neg = s.negotiations[0];
+    expect(neg).toMatchObject({ holder: "Holder H", requester: "Asker A", status: "open" });
+    expect(s.notices.some((n) => n.to === "Holder H" && n.kind === "negotiation")).toBe(true);
+    await expect(applyOp(storage, { type: "neg_reply", id: neg.id, accept: true }, { name: "Asker A", role: "faculty" }, ctx)).rejects.toMatchObject({ status: 403 });
+    const out = await applyOp(storage, { type: "neg_reply", id: neg.id, accept: true }, { name: "Holder H", role: "faculty" }, ctx);
+    expect(out.message).toBe("Accepted");
+    const rows = (await db.query<{ who: string; s: string; status: string }>("select requester_name who, to_char(starts_at at time zone 'Asia/Kolkata','HH24:MI') s, status::text from bookings where resource_id='F1-07' order by starts_at")).rows;
+    expect(rows).toEqual([
+      { who: "Asker A", s: "11:00", status: "confirmed" },
+      { who: "Holder H", s: "12:00", status: "confirmed" },
+    ]);
+    expect((await storage.load()).negotiations[0].status).toBe("accepted");
+  });
+
+  it("swap marketplace hands a slot over in one write", async () => {
+    const own = await applyOp(storage, { type: "book", req: req({ roomIds: ["F1-08"], start: 12 * 60, end: 13 * 60 }) }, faculty, ctx);
+    const id = own.result!.ok ? own.result!.booking.id : "";
+    await applyOp(storage, { type: "swap_list", bookingId: id }, faculty, ctx);
+    const swap = (await storage.load()).swaps[0];
+    const out = await applyOp(storage, { type: "swap_claim", id: swap.id }, { name: "Claimer C", role: "faculty" }, ctx);
+    expect(out.message).toBe("Claimed");
+    const rows = (await db.query<{ who: string; status: string }>("select requester_name who, status::text from bookings where resource_id='F1-08' order by created_at")).rows;
+    expect(rows).toEqual([
+      { who: "Demo Faculty", status: "cancelled" },
+      { who: "Claimer C", status: "confirmed" },
+    ]);
+  });
+
+  it("counter-proposal: approver offers a slot, requester accepts in one click", async () => {
+    const r = await applyOp(storage, { type: "book", req: req({ roomIds: ["F1-10"], start: 13 * 60, end: 14 * 60, purpose: "casual" }) }, student, ctx);
+    const id = r.result!.ok ? r.result!.booking.id : "";
+    expect(r.result!.ok && r.result!.booking.status).toBe("pending_approval");
+    await applyOp(storage, { type: "counter", bookingId: id, roomId: "F1-11", start: 15 * 60, end: 16 * 60 }, { name: "HOD", role: "approver" }, ctx);
+    expect((await storage.load()).notices.find((n) => n.to === "Demo Student" && n.kind === "counter")).toBeTruthy();
+    const out = await applyOp(storage, { type: "counter_reply", bookingId: id, accept: true }, student, ctx);
+    expect(out.message).toBe("Accepted");
+    const row = (await db.query<{ status: string }>("select status::text from bookings where resource_id='F1-11'")).rows[0];
+    expect(row.status).toBe("confirmed");
+  });
+
+  it("soft-hold blocks others for 90 s; rules editor blackouts persist", async () => {
+    await applyOp(storage, { type: "hold", roomIds: ["F1-05"], date: today, start: 18 * 60, end: 19 * 60 }, { name: "Holder", role: "faculty" }, ctx);
+    const other = await applyOp(storage, { type: "book", req: req({ roomIds: ["F1-05"], start: 18 * 60, end: 19 * 60 }) }, faculty, ctx);
+    expect(other.result?.ok).toBe(false);
+    expect(other.result?.event.text).toMatch(/soft-hold/);
+    const mine = await applyOp(storage, { type: "book", req: req({ roomIds: ["F1-05"], start: 18 * 60, end: 19 * 60 }) }, { name: "Holder", role: "faculty" }, ctx);
+    expect(mine.result?.ok).toBe(true);
+    expect((await storage.load()).holds).toHaveLength(0);
+
+    await applyOp(storage, { type: "blackout_add", blackout: { label: "Viva week", date: today, start: 600, end: 720, roomIds: ["F1-04"], allow: ["exam"] } }, admin, ctx);
+    const blocked = await applyOp(storage, { type: "book", req: req({ roomIds: ["F1-04"], start: 600, end: 660 }) }, faculty, ctx);
+    expect(blocked.result?.event.text).toMatch(/Viva week/);
+    const bo = (await storage.load()).blackouts.find((b) => b.label === "Viva week")!;
+    expect(bo).toMatchObject({ date: today, start: 600, end: 720 });
+    await applyOp(storage, { type: "blackout_remove", id: bo.id }, admin, ctx);
+    expect((await storage.load()).blackouts.find((b) => b.label === "Viva week")).toBeUndefined();
   });
 });

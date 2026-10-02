@@ -5,7 +5,7 @@ import { addDays, fmt24, parse24, weekday } from "@/lib/time";
 import type { Room } from "@/lib/types";
 
 export const BookingIntent = z.object({
-  intent: z.enum(["book", "search", "explain"]),
+  intent: z.enum(["book", "search", "explain", "forecast"]),
   resource_type: z.enum(["lh", "lab", "tutorial", "seminar", "study", "meeting", "outdoor"]).nullable(),
   min_capacity: z.number().int().min(1).max(500).nullable(),
   tags: z.array(z.string()),
@@ -27,7 +27,7 @@ export function parseIntent(text: string, today: string, nowMin: number): Bookin
   let resource_type: BookingIntent["resource_type"] = null;
   if (/seminar|auditorium|\bhall\b(?!.*lecture)/.test(t)) resource_type = "seminar";
   if (/lecture|classroom|\blh\b/.test(t)) resource_type = "lh";
-  if (/\blab\b|computers?|pcs?\b/.test(t)) resource_type = "lab";
+  if (/\blabs?\b|computers?|pcs?\b/.test(t)) resource_type = "lab";
   if (/tutorial/.test(t)) resource_type = "tutorial";
   if (/library|study|quiet/.test(t)) resource_type = resource_type ?? "study";
   if (/meeting|conference/.test(t)) resource_type = "meeting";
@@ -91,7 +91,7 @@ export function parseIntent(text: string, today: string, nowMin: number): Bookin
 
   confidence = Math.min(0.97, confidence + (tags.length ? 0.05 : 0));
   return {
-    intent: /why|explain/.test(t) ? "explain" : /find|search|show|any/.test(t) ? "search" : "book",
+    intent: /why|explain|moved|bumped/.test(t) ? "explain" : /forecast|next week|look like|how busy|demand/.test(t) ? "forecast" : /find|search|show|any/.test(t) ? "search" : "book",
     resource_type,
     min_capacity,
     tags,
@@ -100,7 +100,7 @@ export function parseIntent(text: string, today: string, nowMin: number): Bookin
     duration_minutes,
     purpose,
     confidence: Math.round(confidence * 100) / 100,
-    clarifying_question: confidence < 0.8 ? (resource_type ? "How many people, and roughly what time?" : "What kind of room do you need: lecture hall, lab, tutorial room or the seminar hall?") : null,
+    clarifying_question: /why|explain|moved|bumped|forecast|next week|look like|how busy|demand/.test(t) ? null : confidence < 0.8 ? (resource_type ? "How many people, and roughly what time?" : "What kind of room do you need: lecture hall, lab, tutorial room or the seminar hall?") : null,
   };
 }
 

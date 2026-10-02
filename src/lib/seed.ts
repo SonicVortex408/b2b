@@ -1,5 +1,5 @@
 import { BOOKABLE_ROOMS, FLOOR_2 } from "@/data/campus";
-import type { EngineState } from "@/lib/engine";
+import { withDefaults, type EngineState } from "@/lib/engine";
 import { addDays, DAY_END, DAY_START, weekday } from "@/lib/time";
 import type { Booking, Purpose, Role, Room } from "@/lib/types";
 
@@ -124,7 +124,7 @@ export function seedState(today: string, nowMin: number): EngineState {
       createdAt: Date.now(),
     }),
   );
-  return {
+  return withDefaults({
     bookings: clear,
     events: [],
     bumps: { "GDSC XIE": 1, "XIE Dance Crew": 3, Rotaract: 2 },
@@ -132,5 +132,5 @@ export function seedState(today: string, nowMin: number): EngineState {
     blackouts: [{ id: "bo-1", label: "End-Sem exam blackout", date: examDate, start: 9 * 60, end: 13 * 60, roomIds: examRooms, allow: ["exam"] }],
     points: { "GDSC XIE": 120, "IEEE XIE": 95, "CSI-XIE": 80, Rotaract: 60, "E-Cell": 45, "XIE Dance Crew": 30 },
     seq: 1000,
-  };
+  });
 }

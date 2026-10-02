@@ -7,7 +7,8 @@ import { KIND_LABEL } from "@/data/campus";
 import { PURPOSE_LABEL } from "@/lib/engine";
 import { searchAvailability, type BookingIntent, type Option } from "@/lib/intent";
 import { fmtDate, fmtTime } from "@/lib/time";
-import { useStore } from "@/store/useStore";
+import { forecast } from "@/lib/forecast";
+import { myNotices, useStore } from "@/store/useStore";
 
 gsap.registerPlugin(Flip);
 
@@ -110,7 +111,9 @@ export function Assistant() {
                 ))}
               </div>
             )}
-            {res && (
+            {res && res.intent.intent === "explain" && <Explain />}
+            {res && res.intent.intent === "forecast" && <ForecastView kind={res.intent.resource_type} />}
+            {res && res.intent.intent !== "explain" && res.intent.intent !== "forecast" && (
               <>
                 <details className="rounded-lg bg-black/[.03] p-2 text-[11px]">
                   <summary className="cursor-pointer">
@@ -166,6 +169,52 @@ export function Assistant() {
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+/** "Explain why my booking moved": facts come from the decision log, not the LLM. */
+function Explain() {
+  const engine = useStore((s) => s.engine);
+  const me = useStore((s) => s.me);
+  const role = useStore((s) => s.role);
+  const set = useStore((s) => s.set);
+  const n = myNotices({ engine, me, role }).find((x) => x.to === me && (x.kind === "bump" || x.kind === "approval" || x.kind === "negotiation" || x.kind === "counter"));
+  const ev = engine.events.find((e) => e.text.includes(me));
+  if (!n && !ev) return <p className="rounded-lg bg-black/[.03] p-3 text-xs">None of your bookings have been moved, rejected or contested. 🎉</p>;
+  return (
+    <div className="space-y-2 rounded-xl border border-[var(--line)] p-3 text-xs" data-option>
+      <div className="font-mono text-[10px] uppercase tracking-widest text-muted">From the decision log</div>
+      <p className="leading-relaxed">{n?.text ?? ev?.text}</p>
+      {n?.alts && n.alts.length > 0 && <p className="text-muted">{n.alts.length} rebooking offers are waiting in your notifications.</p>}
+      <button onClick={() => set({ panel: n ? "notifications" : "conflicts" })} className="rounded-md border border-[var(--line)] px-3 py-1">
+        {n ? "Open notifications" : "Open conflict center"}
+      </button>
+    </div>
+  );
+}
+
+function ForecastView({ kind }: { kind: BookingIntent["resource_type"] }) {
+  const engine = useStore((s) => s.engine);
+  const today = useStore((s) => s.today);
+  const rows = forecast(engine, today, kind && kind !== "outdoor" && kind !== "meeting" ? [kind] : undefined);
+  const LABEL: Record<string, string> = { lab: "Labs", lh: "Lecture halls", tutorial: "Tutorial rooms", seminar: "Seminar Hall", study: "Library" };
+  return (
+    <div className="space-y-3 rounded-xl border border-[var(--line)] p-3 text-xs" data-option>
+      <div className="font-mono text-[10px] uppercase tracking-widest text-muted">Next 7 days · forecast from the last 14 days</div>
+      {rows.map((r) => (
+        <div key={r.kind}>
+          <div className="mb-1 flex justify-between">
+            <b>{LABEL[r.kind] ?? r.kind}</b>
+            <span>~{Math.round(r.nextWeekAvg * 100)}% booked</span>
+          </div>
+          <div className="flex h-10 items-end gap-1">
+            {r.days.map((d) => (
+              <div key={d.date} className="flex-1 rounded-t bg-brand/70" style={{ height: `${Math.max(4, d.utilisation * 100)}%` }} title={`${d.date}: ${Math.round(d.utilisation * 100)}%`} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

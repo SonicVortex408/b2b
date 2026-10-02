@@ -3,7 +3,7 @@
  * (timestamptz, one row per resource). Also computes the diff an engine operation produced, which
  * apply_engine_changes() persists atomically.
  */
-import type { Blackout, EngineState, WaitEntry } from "@/lib/engine";
+import { withDefaults, type Blackout, type EngineState, type WaitEntry } from "@/lib/engine";
 import { pad } from "@/lib/time";
 import type { Booking, BookingStatus, DecisionEvent, Purpose, Role, ScoreBreakdown } from "@/lib/types";
 
@@ -76,12 +76,47 @@ export interface BlackoutRow {
   allow: Purpose[];
 }
 
+/** Negotiations, swaps, counters, holds, notices and occupancy live in one generic table. */
+export type DocKind = "neg" | "swap" | "counter" | "hold" | "notice" | "occ";
+export interface DocRow {
+  kind: DocKind;
+  id: string;
+  data: unknown;
+}
+
 export interface Rows {
   bookings: BookingRow[];
   events: EventRow[];
   ledger: LedgerRow[];
   waitlist: WaitRow[];
   blackouts: BlackoutRow[];
+  docs?: DocRow[];
+}
+
+type DocState = Pick<EngineState, "negotiations" | "swaps" | "counters" | "holds" | "notices" | "occupancy">;
+
+function docsOf(s: DocState): DocRow[] {
+  return [
+    ...s.negotiations.map((d) => ({ kind: "neg" as const, id: d.id, data: d })),
+    ...s.swaps.map((d) => ({ kind: "swap" as const, id: d.id, data: d })),
+    ...s.counters.map((d) => ({ kind: "counter" as const, id: d.id, data: d })),
+    ...s.holds.map((d) => ({ kind: "hold" as const, id: d.id, data: d })),
+    ...s.notices.map((d) => ({ kind: "notice" as const, id: d.id, data: d })),
+    ...Object.entries(s.occupancy).map(([id, d]) => ({ kind: "occ" as const, id, data: d })),
+  ];
+}
+
+function stateFromDocs(docs: DocRow[]): DocState {
+  const by = <T,>(k: DocKind) => docs.filter((d) => d.kind === k).map((d) => d.data as T);
+  const sortAt = <T extends { at: number }>(xs: T[]) => xs.sort((a, b) => b.at - a.at);
+  return {
+    negotiations: sortAt(by("neg")),
+    swaps: sortAt(by("swap")),
+    counters: sortAt(by("counter")),
+    holds: by("hold"),
+    notices: sortAt(by("notice")),
+    occupancy: Object.fromEntries(docs.filter((d) => d.kind === "occ").map((d) => [d.id, d.data])) as EngineState["occupancy"],
+  };
 }
 
 export function rowsToState(rows: Rows): EngineState {
@@ -119,7 +154,8 @@ export function rowsToState(rows: Rows): EngineState {
     if (l.bumps_suffered) bumps[l.subject] = l.bumps_suffered;
     if (l.points) points[l.subject] = l.points;
   }
-  return {
+  return withDefaults({
+    ...stateFromDocs(rows.docs ?? []),
     bookings: [...byId.values()].map((b) => ({ ...b, roomIds: b.roomIds.sort() })),
     events: rows.events
       .map((e) => ({
@@ -159,12 +195,12 @@ export function rowsToState(rows: Rows): EngineState {
     }),
     // Random high seq so ids minted by concurrent server invocations don't collide.
     seq: Math.floor(Math.random() * 36 ** 6) * 36 ** 3 + (Date.now() % 36 ** 3),
-  };
+  });
 }
 
 export interface Changes {
   actor: string;
-  updates: { id: string; status?: BookingStatus; ends_at?: string; checked_in?: boolean; occupancy?: number }[];
+  updates: { id: string; status?: BookingStatus; starts_at?: string; ends_at?: string; checked_in?: boolean; occupancy?: number }[];
   inserts: {
     id: string;
     resource_ids: string[];
@@ -184,9 +220,15 @@ export interface Changes {
   ledger: { subject: string; bumps: number; points: number }[];
   waitlist_add: { id: string; resource_ids: string[]; requester_name: string; requester_role: Role; club?: string; starts_at: string; ends_at: string; title: string; purpose: Purpose; attendees: number }[];
   waitlist_remove: string[];
+  docs_upsert?: DocRow[];
+  docs_remove?: { kind: DocKind; id: string }[];
+  blackouts_upsert?: BlackoutRow[];
+  blackouts_remove?: string[];
 }
 
-export const isEmpty = (c: Changes) => !c.updates.length && !c.inserts.length && !c.events.length && !c.ledger.length && !c.waitlist_add.length && !c.waitlist_remove.length;
+export const isEmpty = (c: Changes) =>
+  !c.updates.length && !c.inserts.length && !c.events.length && !c.ledger.length && !c.waitlist_add.length && !c.waitlist_remove.length &&
+  !c.docs_upsert?.length && !c.docs_remove?.length && !c.blackouts_upsert?.length && !c.blackouts_remove?.length;
 
 /** What an engine operation changed, in the shape apply_engine_changes() expects. */
 export function diff(before: EngineState, after: EngineState, actor: string, requesterId?: string): Changes {
@@ -215,6 +257,7 @@ export function diff(before: EngineState, after: EngineState, actor: string, req
     }
     const u: Changes["updates"][number] = { id: b.id };
     if (p.status !== b.status) u.status = b.status;
+    if (p.start !== b.start) u.starts_at = toTs(b.date, b.start);
     if (p.end !== b.end) u.ends_at = toTs(b.date, b.end);
     if (!!p.checkedIn !== !!b.checkedIn) u.checked_in = !!b.checkedIn;
     if ((p.occupancy ?? 0) !== (b.occupancy ?? 0)) u.occupancy = b.occupancy ?? 0;
@@ -237,5 +280,31 @@ export function diff(before: EngineState, after: EngineState, actor: string, req
       .filter((w) => !beforeWl.has(w.id))
       .map((w) => ({ id: w.id, resource_ids: w.roomIds, requester_name: w.requester, requester_role: w.role, club: w.club, starts_at: toTs(w.date, w.start), ends_at: toTs(w.date, w.end), title: w.title, purpose: w.purpose, attendees: w.attendees })),
     waitlist_remove: [...beforeWl].filter((id) => !afterWl.has(id)),
+    ...docsDiff(before, after),
+    ...blackoutsDiff(before, after),
+  };
+}
+
+function docsDiff(before: EngineState, after: EngineState) {
+  const key = (d: DocRow) => `${d.kind}:${d.id}`;
+  const prev = new Map(docsOf(before).map((d) => [key(d), JSON.stringify(d.data)]));
+  const next = docsOf(after);
+  const nextKeys = new Set(next.map(key));
+  return {
+    docs_upsert: next.filter((d) => prev.get(key(d)) !== JSON.stringify(d.data)),
+    docs_remove: docsOf(before)
+      .filter((d) => !nextKeys.has(key(d)))
+      .map((d) => ({ kind: d.kind, id: d.id })),
+  };
+}
+
+function blackoutsDiff(before: EngineState, after: EngineState) {
+  const prev = new Map(before.blackouts.map((b) => [b.id, JSON.stringify(b)]));
+  const ids = new Set(after.blackouts.map((b) => b.id));
+  return {
+    blackouts_upsert: after.blackouts
+      .filter((b) => prev.get(b.id) !== JSON.stringify(b))
+      .map((b) => ({ id: b.id, label: b.label, starts_at: toTs(b.date, b.start), ends_at: toTs(b.date, b.end), resource_ids: b.roomIds, allow: b.allow })),
+    blackouts_remove: before.blackouts.filter((b) => !ids.has(b.id)).map((b) => b.id),
   };
 }

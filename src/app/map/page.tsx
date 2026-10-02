@@ -102,7 +102,7 @@ export default function Home() {
 }
 
 function Legend() {
-  const states: LiveState[] = ["free", "booked", "pending", "ghost", "inuse", "blackout"];
+  const states: LiveState[] = ["free", "booked", "pending", "held", "ghost", "inuse", "squatter", "blackout"];
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-0 text-xs md:pl-44">
       <span className="font-mono text-[10px] uppercase tracking-widest text-muted">Live state</span>

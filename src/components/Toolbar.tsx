@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { AuthControl } from "./AuthControl";
+import { useUnread } from "./Collab";
 import { addDays, DAY_END, DAY_START, fmtDate, fmtTime, nowMinutes } from "@/lib/time";
 import type { Role } from "@/lib/types";
 import { useStore, type Panel } from "@/store/useStore";
@@ -13,11 +14,12 @@ const NAV: [Panel, string][] = [
   ["bookings", "My bookings"],
   ["approvals", "Approvals"],
   ["conflicts", "Conflict center"],
-  ["admin", "Analytics"],
+  ["admin", "Admin"],
 ];
 
 export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean) => void }) {
   const remote = useStore((s) => s.remote);
+  const unread = useUnread();
   const role = useStore((s) => s.role);
   const setRole = useStore((s) => s.setRole);
   const panel = useStore((s) => s.panel);
@@ -50,6 +52,12 @@ export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean)
             {p === "approvals" && pending > 0 && <span className="ml-1.5 rounded-full bg-pending px-1.5 text-[10px] text-white">{pending}</span>}
           </button>
         ))}
+        <button
+          onClick={() => set({ panel: panel === "swaps" ? "none" : "swaps", selected: null })}
+          className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ${panel === "swaps" ? "bg-navy text-white dark:bg-white dark:text-navy" : "hover:bg-black/5"}`}
+        >
+          Swaps
+        </button>
         <a href="/swipe" className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium hover:bg-black/5">
           Swipe
         </a>
@@ -68,6 +76,14 @@ export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean)
             </select>
           </label>
         )}
+        <button
+          onClick={() => set({ panel: panel === "notifications" ? "none" : "notifications", selected: null })}
+          className="relative grid h-8 w-8 place-items-center rounded-md border border-[var(--line)]"
+          aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
+        >
+          🔔
+          {unread > 0 && <span className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full bg-busy px-1 text-center text-[10px] font-bold leading-[18px] text-white">{unread > 99 ? "99+" : unread}</span>}
+        </button>
         <button onClick={() => setDark(!dark)} className="grid h-8 w-8 place-items-center rounded-md border border-[var(--line)]" aria-label="Toggle dark mode">
           {dark ? "☀" : "☾"}
         </button>

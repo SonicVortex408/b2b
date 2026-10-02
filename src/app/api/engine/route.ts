@@ -25,6 +25,22 @@ const OpSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("waitlist"), req: Req }),
   z.object({ type: z.literal("act"), kind: z.enum(["approve", "reject", "cancel", "release", "checkin", "noshow", "escalate"]), id: z.string().max(80) }),
   z.object({ type: z.literal("sweep") }),
+  z.object({ type: z.literal("hold"), roomIds: z.array(z.string()).min(1).max(4), date: z.string(), start: z.number().int(), end: z.number().int() }),
+  z.object({ type: z.literal("unhold") }),
+  z.object({ type: z.literal("neg_msg"), id: z.string().max(80), text: z.string().min(1).max(500) }),
+  z.object({ type: z.literal("neg_reply"), id: z.string().max(80), accept: z.boolean() }),
+  z.object({ type: z.literal("swap_list"), bookingId: z.string().max(80) }),
+  z.object({ type: z.literal("swap_withdraw"), id: z.string().max(80) }),
+  z.object({ type: z.literal("swap_claim"), id: z.string().max(80) }),
+  z.object({ type: z.literal("counter"), bookingId: z.string().max(80), roomId: z.string(), start: z.number().int(), end: z.number().int() }),
+  z.object({ type: z.literal("counter_reply"), bookingId: z.string().max(80), accept: z.boolean() }),
+  z.object({ type: z.literal("claim_free"), noticeId: z.string().max(80) }),
+  z.object({ type: z.literal("occupancy_sim") }),
+  z.object({
+    type: z.literal("blackout_add"),
+    blackout: z.object({ label: z.string().min(1).max(80), date: z.string(), start: z.number().int(), end: z.number().int(), roomIds: z.array(z.string()).min(1), allow: z.array(z.enum(["exam", "academic_class", "faculty_event", "club_event", "casual"])) }),
+  }),
+  z.object({ type: z.literal("blackout_remove"), id: z.string().max(80) }),
 ]);
 
 /** Live state for the map (public read, same as RLS). */

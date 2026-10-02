@@ -2,9 +2,9 @@
 
 import gsap from "gsap";
 import { Flip } from "gsap/Flip";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { describe, KIND_LABEL } from "@/data/campus";
-import { initialStatus, PURPOSE_LABEL, score } from "@/lib/engine";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { BOOKABLE_ROOMS, describe, KIND_LABEL, ROOM_BY_ID } from "@/data/campus";
+import { HOLD_MS, initialStatus, previewBooking, PURPOSE_LABEL, score } from "@/lib/engine";
 import { bookingsFor, freeSlots, liveState, STATE_META } from "@/lib/status";
 import { DAY_END, DAY_START, fmtDate, fmtTime } from "@/lib/time";
 import type { BookResult, Purpose, Room } from "@/lib/types";
@@ -46,6 +46,10 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
   const [title, setTitle] = useState("");
   const [more, setMore] = useState(false);
   const [result, setResult] = useState<BookResult | null>(null);
+  const [extra, setExtra] = useState("");
+  const [pick, setPick] = useState<{ start: number; roomId: string; date: string; expires: number } | null>(null);
+  const [, tickNow] = useState(0);
+  const dispatch = useStore((s) => s.dispatch);
 
   const live = liveState(engine, room.id, date, time, today, nowMin);
   const meta = STATE_META[live.state];
@@ -81,8 +85,38 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
     Flip.fit(card, proxyRef.current!, { scale: false, absolute: true, duration: 0.45, ease: "power3.inOut", onComplete: onClose });
   };
 
+  const roomsFor = (roomId: string) => (extra && extra !== roomId ? [roomId, extra] : [roomId]);
+  const reqFor = (start: number, roomId = room.id, d = date) => ({ roomIds: roomsFor(roomId), date: d, start, end: start + dur, title: title || `${PURPOSE_LABEL[purpose]} · ${me}`, requester: me, role, purpose, attendees });
+
+  // Step 1: pick a time → 90 s soft-hold + live conflict preview. Step 2: confirm.
+  const selectSlot = (start: number, roomId = room.id, d = date) => {
+    setResult(null);
+    setPick({ start, roomId, date: d, expires: Date.now() + HOLD_MS });
+    void dispatch({ type: "hold", roomIds: roomsFor(roomId), date: d, start, end: start + dur }, true);
+  };
+  const cancelPick = () => {
+    setPick(null);
+    void dispatch({ type: "unhold" }, true);
+  };
+  useEffect(() => {
+    if (!pick) return;
+    const t = setInterval(() => {
+      if (Date.now() > pick.expires) cancelPick();
+      else tickNow((x) => x + 1);
+    }, 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pick]);
+  useEffect(() => () => void useStore.getState().dispatch({ type: "unhold" }, true), []);
+
+  const preview = useMemo(() => (pick ? previewBooking(engine, reqFor(pick.start, pick.roomId, pick.date), { today, nowMin }) : null), [pick, engine, dur, purpose, attendees, extra, today, nowMin]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const doBook = async (start: number, roomId = room.id, d = date) => {
-    const res = await book({ roomIds: [roomId], date: d, start, end: start + dur, title: title || `${PURPOSE_LABEL[purpose]} · ${me}`, purpose, attendees });
+    const { requester: _r, role: _ro, ...req } = reqFor(start, roomId, d);
+    void _r;
+    void _ro;
+    const res = await book(req);
+    setPick(null);
     setResult(res);
     if (res.ok && roomId !== room.id) setStore({ selected: roomId });
   };
@@ -135,7 +169,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
             )}
             <button
               disabled={nextSlot == null}
-              onClick={() => nextSlot != null && doBook(nextSlot)}
+              onClick={() => nextSlot != null && selectSlot(nextSlot)}
               className="mt-3 w-full rounded-md bg-free py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
             >
               {nextSlot != null ? `${verb} for ${fmtTime(nextSlot)}` : "No free slots left today"}
@@ -148,10 +182,38 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
                 Join waitlist for {fmtTime(time)}
               </button>
             )}
+            {live.state !== "free" && live.booking && (
+              <button onClick={() => selectSlot(time - (time % 15))} className="mt-2 w-full rounded-md border border-dashed border-[var(--line)] py-2 text-xs text-muted hover:bg-black/5">
+                Request {fmtTime(time - (time % 15))} anyway (see who wins)
+              </button>
+            )}
             {needsApproval && <p className="mt-2 text-[11px] text-pending">Goes to the {room.pool} pool for approval (slot is soft-held meanwhile).</p>}
           </section>
 
-          {result && <Outcome result={result} onPick={(a) => doBook(a.start, a.roomId, a.date)} onDismiss={() => setResult(null)} />}
+          {pick && preview && (
+            <section className="rounded-lg border-2 border-brand/40 bg-brand/5 p-3 text-xs" role="status" aria-live="polite">
+              <div className="mb-1 flex items-center justify-between">
+                <b>
+                  {roomsFor(pick.roomId).map((id) => ROOM_BY_ID.get(id)?.short).join(" + ")} · {fmtTime(pick.start)}–{fmtTime(pick.start + dur)}
+                </b>
+                <span className="rounded bg-pending/15 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-pending" title="Soft-hold: others can't take this slot while you confirm">
+                  held {Math.max(0, Math.ceil((pick.expires - Date.now()) / 1000))}s
+                </span>
+              </div>
+              <p className={`leading-relaxed ${{ confirm: "text-free", pending: "text-pending", bump: "text-busy", negotiate: "text-pending", share: "text-inuse", conflict: "text-busy", rule: "text-busy" }[preview.decision]}`}>{preview.text}</p>
+              {preview.theirs && <ScoreBars a={preview.mine} b={preview.theirs} aLabel="You" bLabel="Holder" />}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button onClick={cancelPick} className="rounded-md border border-[var(--line)] py-1.5">
+                  Cancel
+                </button>
+                <button disabled={preview.decision === "rule"} onClick={() => doBook(pick.start, pick.roomId, pick.date)} className="rounded-md bg-free py-1.5 font-semibold text-white disabled:bg-gray-300">
+                  {preview.decision === "pending" ? "Send request" : preview.decision === "confirm" || preview.decision === "bump" ? "Confirm booking" : "Submit anyway"}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {result && <Outcome result={result} onPick={(a) => selectSlot(a.start, a.roomId, a.date)} onDismiss={() => setResult(null)} />}
 
           <section data-stagger className="grid grid-cols-2 gap-2 text-xs">
             <label className="col-span-2 flex flex-col gap-1">
@@ -172,6 +234,17 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
               <span className="font-mono text-[10px] uppercase tracking-widest text-muted">Attendees</span>
               <input type="number" min={1} value={attendees} onChange={(e) => setAttendees(Number(e.target.value))} className="rounded-md border border-[var(--line)] bg-transparent px-2 py-1.5" />
             </label>
+            <label className="col-span-2 flex flex-col gap-1">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-muted">Bundle with (all-or-nothing)</span>
+              <select value={extra} onChange={(e) => setExtra(e.target.value)} className="rounded-md border border-[var(--line)] bg-transparent px-2 py-1.5">
+                <option value="">Just this room</option>
+                {BOOKABLE_ROOMS.filter((r) => r.id !== room.id).map((r) => (
+                  <option key={r.id} value={r.id}>
+                    + {r.name} (L{r.floor}, {r.capacity})
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="col-span-2 flex items-center gap-1.5">
               <span className="mr-1 font-mono text-[10px] uppercase tracking-widest text-muted">Length</span>
               {[30, 60, 90, 120].map((d) => (
@@ -189,7 +262,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
             <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Other available times</h4>
             <div className="grid grid-cols-4 gap-1.5">
               {slots.slice(1, more ? 16 : 8).map((t) => (
-                <button key={t} onClick={() => doBook(t)} className="rounded-md border border-free/60 py-1.5 text-xs font-medium text-free transition hover:bg-free hover:text-white">
+                <button key={t} onClick={() => selectSlot(t)} className="rounded-md border border-free/60 py-1.5 text-xs font-medium text-free transition hover:bg-free hover:text-white">
                   {fmtTime(t)}
                 </button>
               ))}

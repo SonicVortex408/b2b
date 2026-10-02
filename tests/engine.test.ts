@@ -8,7 +8,7 @@ import type { BookingRequest } from "@/lib/types";
 
 const today = "2026-10-05"; // a Monday
 const ctx = { today, nowMin: 9 * 60 };
-const empty = (): E.EngineState => ({ bookings: [], events: [], bumps: {}, waitlist: [], blackouts: [], points: {}, seq: 0 });
+const empty = (): E.EngineState => E.withDefaults({});
 const req = (p: Partial<BookingRequest> = {}): BookingRequest => ({
   roomIds: ["F1-14"],
   date: today,
@@ -106,5 +106,46 @@ describe("seed", () => {
     const s = seedState(today, 11 * 60);
     expect(s.bookings.length).toBeGreaterThan(BOOKABLE_ROOMS.length * 10);
     expect(E.countDoubleBookings(s)).toBe(0);
+  });
+});
+
+describe("collaboration features", () => {
+  it("previewBooking explains the outcome without changing state", () => {
+    const s = empty();
+    E.bookResources(s, req({ roomIds: ["F2-10"], role: "student", purpose: "club_event", club: "GDSC XIE", attendees: 40 }), ctx);
+    const before = JSON.stringify(s);
+    const p = E.previewBooking(s, req({ roomIds: ["F2-10"], role: "admin", purpose: "exam", attendees: 60 }), ctx);
+    expect(p.decision).toBe("bump");
+    expect(p.theirs?.total).toBeLessThan(p.mine.total);
+    expect(JSON.stringify(s)).toBe(before);
+    expect(E.previewBooking(s, req({ roomIds: ["F1-14"], start: 16 * 60, end: 17 * 60 }), ctx).decision).toBe("confirm");
+  });
+
+  it("release early broadcasts a claimable 'room free now' notice", () => {
+    const s = empty();
+    const r = E.bookResources(s, req({ start: 9 * 60, end: 12 * 60 }), ctx);
+    if (r.ok) E.checkIn(s, r.booking.id);
+    if (r.ok) E.releaseEarly(s, r.booking.id, { today, nowMin: 10 * 60 });
+    const n = s.notices.find((x) => x.kind === "free")!;
+    expect(n.free).toMatchObject({ roomId: "F1-14", start: 600, end: 720 });
+    expect(E.claimFree(s, n.id, { name: "Neighbour", role: "student" }, { today, nowMin: 10 * 60 + 5 })).toBe("Claimed");
+    expect(E.claimFree(s, n.id, { name: "Late", role: "student" }, { today, nowMin: 10 * 60 + 6 })).toMatch(/already claimed/);
+    expect(E.countDoubleBookings(s)).toBe(0);
+  });
+
+  it("negotiations escalate when unanswered", () => {
+    const s = empty();
+    E.bookResources(s, req({ attendees: 8 }), ctx);
+    E.bookResources(s, req({ requester: "other", attendees: 8 }), ctx); // conference room seats 8 → no share, equal-ish priority
+    expect(s.negotiations).toHaveLength(1);
+    s.negotiations[0].at -= 11 * 60 * 1000;
+    E.escalateNegotiations(s, 10 * 60 * 1000);
+    expect(s.negotiations[0].status).toBe("escalated");
+    expect(s.notices.some((n) => n.to === "role:admin")).toBe(true);
+  });
+
+  it("assistant understands explain and forecast questions", () => {
+    expect(parseIntent("why was my booking moved?", today, 600).intent).toBe("explain");
+    expect(parseIntent("what will labs look like next week", today, 600)).toMatchObject({ intent: "forecast", resource_type: "lab" });
   });
 });

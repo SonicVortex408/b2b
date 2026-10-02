@@ -1,7 +1,7 @@
 import { CHECKIN_WINDOW, inBlackout, type EngineState } from "@/lib/engine";
 import { HOLDING, type Booking, type RoomKind } from "@/lib/types";
 
-export type LiveState = "free" | "booked" | "pending" | "ghost" | "inuse" | "blackout";
+export type LiveState = "free" | "booked" | "pending" | "ghost" | "inuse" | "blackout" | "held" | "squatter";
 
 export const STATE_META: Record<LiveState, { label: string; fill: string; dot: string; text: string }> = {
   free: { label: "Available", fill: "#dcf3e3", dot: "#16a34a", text: "Free" },
@@ -10,6 +10,14 @@ export const STATE_META: Record<LiveState, { label: string; fill: string; dot: s
   ghost: { label: "Booked but empty", fill: "url(#ghost-hatch)", dot: "#dc2626", text: "Ghost" },
   inuse: { label: "Checked in · in use", fill: "#d6e4fb", dot: "#2563eb", text: "In use" },
   blackout: { label: "Blackout", fill: "#e5e7eb", dot: "#9ca3af", text: "Blackout" },
+  held: { label: "Soft-held (confirming)", fill: "#fdf3d7", dot: "#ca8a04", text: "On hold" },
+  squatter: { label: "Free but occupied", fill: "#ede4fb", dot: "#7c3aed", text: "Occupied!" },
+};
+
+/** Sensor reading is fresh enough to trust (5 min). */
+const fresh = (s: EngineState, roomId: string) => {
+  const o = s.occupancy[roomId];
+  return o && Date.now() - o.at < 5 * 60 * 1000 ? o.density : undefined;
 };
 
 export const KIND_FILL: Partial<Record<RoomKind, string>> = {
@@ -42,10 +50,14 @@ export function liveState(s: EngineState, roomId: string, date: string, min: num
     if (b.status === "pending_approval") return { state: "pending", booking: b };
     if (b.status === "checked_in") return { state: "inuse", booking: b };
     const isNowish = date === today && Math.abs(min - nowMin) <= 30;
-    if (isNowish && nowMin >= b.start + CHECKIN_WINDOW && !b.checkedIn && (b.occupancy ?? 0) === 0) return { state: "ghost", booking: b };
+    const density = isNowish ? fresh(s, roomId) : undefined;
+    if (isNowish && nowMin >= b.start + CHECKIN_WINDOW && !b.checkedIn && (density ?? b.occupancy ?? 0) === 0) return { state: "ghost", booking: b };
     return { state: "booked", booking: b };
   }
   if (inBlackout(s, roomId, date, min)) return { state: "blackout" };
+  const now = Date.now();
+  if (s.holds.some((h) => h.expires > now && h.date === date && h.roomIds.includes(roomId) && h.start <= min && min < h.end)) return { state: "held" };
+  if (date === today && Math.abs(min - nowMin) <= 30 && (fresh(s, roomId) ?? 0) >= 0.2) return { state: "squatter" };
   return { state: "free" };
 }
 

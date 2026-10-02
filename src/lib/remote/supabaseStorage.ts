@@ -4,7 +4,7 @@ import { ALL_ROOMS } from "@/data/campus";
 import type { EngineState } from "@/lib/engine";
 import { seedState } from "@/lib/seed";
 import { addDays, nowMinutes, todayISO } from "@/lib/time";
-import { rowsToState, toTs, type BlackoutRow, type BookingRow, type Changes, type EventRow, type LedgerRow, type Rows, type WaitRow } from "./mapping";
+import { rowsToState, toTs, type BlackoutRow, type BookingRow, type Changes, type DocRow, type EventRow, type LedgerRow, type Rows, type WaitRow } from "./mapping";
 import type { Storage } from "./ops";
 
 export const DEMO_USERS = [
@@ -35,20 +35,25 @@ async function all<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] |
 export async function loadRows(db: SupabaseClient, today = todayISO()): Promise<Rows> {
   const from = toTs(addDays(today, -14), 0);
   const to = toTs(addDays(today, 22), 0);
-  const [bookings, events, ledger, waitlist, blackouts] = await Promise.all([
+  const [bookings, events, ledger, waitlist, blackouts, docs, notices] = await Promise.all([
     all<BookingRow>((a, b) => db.from("bookings").select("*").gte("starts_at", from).lt("starts_at", to).order("id").range(a, b)),
     db.from("conflict_events").select("*").order("at", { ascending: false }).limit(200),
     db.from("fairness_ledger").select("*"),
     db.from("waitlist").select("*"),
     db.from("blackouts").select("*"),
+    db.from("engine_docs").select("kind,id,data").neq("kind", "notice").order("updated_at", { ascending: false }).limit(1000),
+    db.from("engine_docs").select("kind,id,data").eq("kind", "notice").order("updated_at", { ascending: false }).limit(300),
   ]);
   for (const r of [events, ledger, waitlist, blackouts]) if (r.error) throw new Error(r.error.message);
+  // engine_docs comes from migration 0002; tolerate its absence so 0001-only databases still work.
+  const docRows = [...((docs.error ? [] : docs.data) ?? []), ...((notices.error ? [] : notices.data) ?? [])] as DocRow[];
   return {
     bookings,
     events: (events.data ?? []) as EventRow[],
     ledger: (ledger.data ?? []) as LedgerRow[],
     waitlist: (waitlist.data ?? []) as WaitRow[],
     blackouts: (blackouts.data ?? []) as BlackoutRow[],
+    docs: docRows,
   };
 }
 
@@ -90,6 +95,7 @@ export async function seedDatabase(db: SupabaseClient, opts: { users?: boolean; 
 
   // Clear dynamic state, then load the seeded two weeks + exam blackout.
   for (const t of ["bookings", "conflict_events", "waitlist", "fairness_ledger", "blackouts"]) must(await db.from(t).delete().neq(t === "fairness_ledger" ? "subject" : "id", "__none__"));
+  await db.from("engine_docs").delete().neq("id", "__none__"); // ignore if 0002 isn't applied yet
   const s = seedState(todayISO(), nowMinutes());
   const rows = s.bookings.flatMap((b) =>
     b.roomIds.map((resource_id) => ({
