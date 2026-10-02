@@ -37,7 +37,7 @@ export interface ChaosStats {
   rejected: number;
   escalated: number;
   doubleBookings: number;
-  optimised?: { before: number; after: number; moved: number };
+  optimised?: { before: number; after: number; moved: number; via: "CP-SAT" | "greedy" };
 }
 
 interface State {
@@ -70,7 +70,7 @@ interface State {
   waitlist: (req: Omit<BookingRequest, "requester" | "role">) => void;
   reset: () => void;
   runChaos: () => void;
-  optimise: () => void;
+  optimise: () => Promise<void>;
 }
 
 const KEY = "xie-spaces-v1";
@@ -297,29 +297,74 @@ export const useStore = create<State>((set, get) => {
       }, 200);
     },
 
-    optimise() {
-      // Greedy stand-in for the OR-Tools CP-SAT solver: re-seat every request that lost a conflict
-      // in this run into its best alternative; report utilisation before/after.
+    async optimise() {
+      // Re-seat bumped bookings from this session. Uses the OR-Tools CP-SAT service (POST /api/solver → SOLVER_URL)
+      // when configured; otherwise a greedy least-disruption pass.
       const st = get();
       const ctx = ctxOf(st);
-      const lost = st.engine.events.filter((e) => (e.kind === "rejected_conflict" || e.kind === "negotiate" || e.kind === "share" || e.kind === "bumped") && Date.now() - e.at < 10 * 60 * 1000);
       const util = (s: E.EngineState) => {
         const mins = s.bookings.filter((b) => b.date === st.today && HOLDING.includes(b.status)).reduce((m, b) => m + (b.end - b.start) * b.roomIds.length, 0);
         return Math.round((mins / (BOOKABLE_ROOMS.length * (DAY_END - DAY_START))) * 100);
       };
       const before = util(st.engine);
+      const victims = st.engine.bookings.filter((b) => b.status === "bumped" && b.date === st.today && b.roomIds.length === 1);
+      const slot = (m: number) => Math.floor((m - DAY_START) / 30);
       let moved = 0;
-      mutate((s) => {
-        for (const ev of lost) {
-          const src = ev.loserId ? s.bookings.find((b) => b.id === ev.loserId) : undefined;
-          if (!src || src.status !== "bumped") continue;
-          const alt = E.alternatives(s, src, ctx, 1)[0];
-          if (!alt) continue;
-          const res = E.bookResources(s, { ...src, roomIds: [alt.roomId], date: alt.date, start: alt.start, end: alt.end }, ctx);
-          if (res.ok) moved++;
-        }
-      });
-      set((s0) => ({ chaos: { ...s0.chaos, optimised: { before, after: util(get().engine), moved } } }));
+      let via: "CP-SAT" | "greedy" = "greedy";
+
+      if (victims.length) {
+        try {
+          const blocked = st.engine.bookings
+            .filter((b) => b.date === st.today && HOLDING.includes(b.status))
+            .flatMap((b) => b.roomIds.flatMap((room) => Array.from({ length: Math.ceil((b.end - b.start) / 30) }, (_, k) => ({ room, slot: slot(b.start) + k }))));
+          const minSlot = Math.max(0, slot(Math.ceil(st.nowMin / 30) * 30));
+          const res = await fetch("/api/solver", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              rooms: BOOKABLE_ROOMS.filter((r) => r.kind !== "outdoor").map((r) => ({ id: r.id, type: r.kind, capacity: r.capacity ?? 0, floor: r.floor, tags: r.tags })),
+              events: victims.map((b) => {
+                const room = ROOM_BY_ID.get(b.roomIds[0])!;
+                return {
+                  id: b.id,
+                  size: b.attendees,
+                  duration_slots: Math.ceil((b.end - b.start) / 30),
+                  room_types: [room.kind],
+                  preferred_floor: room.floor,
+                  current_room: room.id,
+                  current_slot: slot(b.start),
+                  allowed_slots: Array.from({ length: 24 - minSlot }, (_, k) => minSlot + k),
+                };
+              }),
+              slots: 24,
+              blocked,
+            }),
+          });
+          if (res.ok) {
+            const out: { assignments: { event_id: string; room: string; slot: number }[] } = await res.json();
+            via = "CP-SAT";
+            mutate((s) => {
+              for (const a of out.assignments) {
+                const src = s.bookings.find((b) => b.id === a.event_id);
+                if (!src) continue;
+                const start = DAY_START + a.slot * 30;
+                const r = E.bookResources(s, { ...src, roomIds: [a.room], start, end: start + (src.end - src.start) }, ctx);
+                if (r.ok) moved++;
+              }
+            });
+          }
+        } catch {}
+        if (via === "greedy")
+          mutate((s) => {
+            for (const v of victims) {
+              const src = s.bookings.find((b) => b.id === v.id);
+              const alt = src && E.alternatives(s, src, ctx, 1)[0];
+              if (!src || !alt) continue;
+              if (E.bookResources(s, { ...src, roomIds: [alt.roomId], date: alt.date, start: alt.start, end: alt.end }, ctx).ok) moved++;
+            }
+          });
+      }
+      set((s0) => ({ chaos: { ...s0.chaos, optimised: { before, after: util(get().engine), moved, via } } }));
     },
   };
 });

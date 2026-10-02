@@ -99,32 +99,47 @@ function ics(b: Booking) {
   URL.revokeObjectURL(url);
 }
 
-/** Rotating QR-style token (60 s TTL). Visual stand-in for the signed JWT check-in code. */
-function QrToken({ seed }: { seed: string }) {
-  const [epoch, setEpoch] = useState(() => Math.floor(Date.now() / 60000));
+/** Rotating check-in code: an HS256 token from /api/qr (60 s TTL, per-room secret), drawn as a QR-style grid. */
+function QrToken({ roomId, onScan }: { roomId: string; onScan: (ok: boolean, reason?: string) => void }) {
+  const [tok, setTok] = useState<{ token: string; exp: number } | null>(null);
   const [left, setLeft] = useState(60);
   useEffect(() => {
+    const load = () => fetch(`/api/qr?room=${roomId}`).then((r) => r.json()).then(setTok).catch(() => {});
+    load();
     const t = setInterval(() => {
-      setEpoch(Math.floor(Date.now() / 60000));
-      setLeft(60 - (Math.floor(Date.now() / 1000) % 60));
+      setTok((cur) => {
+        const l = cur ? cur.exp - Math.floor(Date.now() / 1000) : 0;
+        setLeft(Math.max(0, l));
+        if (l <= 0) load();
+        return cur;
+      });
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [roomId]);
   const cells = useMemo(() => {
     let h = 2166136261;
-    for (const c of `${seed}:${epoch}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    for (const c of tok?.token ?? roomId) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
     return Array.from({ length: 121 }, (_, i) => ((h = Math.imul(h ^ i, 16777619)) >>> 0) % 3 === 0);
-  }, [seed, epoch]);
+  }, [tok, roomId]);
+  const scan = async () => {
+    if (!tok) return;
+    const r = await fetch("/api/qr", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: tok.token, room: roomId }) }).then((x) => x.json());
+    onScan(r.ok, r.reason);
+  };
   return (
     <div className="flex items-center gap-3">
       <svg viewBox="0 0 11 11" className="h-20 w-20 rounded bg-white p-1" shapeRendering="crispEdges" aria-label="Rotating check-in QR">
         {cells.map((on, i) => on && <rect key={i} x={i % 11} y={Math.floor(i / 11)} width={1} height={1} fill="#1f2933" />)}
         {[0, 8].map((x) => [0, 8].map((y) => !(x === 8 && y === 8) && <rect key={`${x}${y}`} x={x} y={y} width={3} height={3} fill="none" stroke="#1f2933" strokeWidth={0.8} />))}
       </svg>
-      <div className="text-[11px] text-muted">
-        Signed token rotates in <b className="tabular-nums text-ink dark:text-white">{left}s</b>
-        <br />
-        Scan at the room door to check in.
+      <div className="space-y-1.5 text-[11px] text-muted">
+        <div>
+          Signed token rotates in <b className="tabular-nums text-ink dark:text-white">{left}s</b>
+        </div>
+        <div className="max-w-[150px] truncate font-mono text-[9px]">{tok?.token.slice(-24)}</div>
+        <Btn tone="ok" onClick={scan}>
+          Simulate scan ✓
+        </Btn>
       </div>
     </div>
   );
@@ -135,6 +150,7 @@ function MyBookings() {
   const today = useStore((s) => s.today);
   const bookings = useStore((s) => s.engine.bookings);
   const act = useStore((s) => s.act);
+  const toast = useStore((s) => s.toast);
   const me = ME[role];
   const mine = bookings.filter((b) => b.requester === me).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   const upcoming = mine.filter((b) => HOLDING.includes(b.status));
@@ -161,11 +177,16 @@ function MyBookings() {
               {b.status === "confirmed" && <Btn onClick={() => act("noshow", b.id)}>Simulate no-show</Btn>}
               <Btn onClick={() => ics(b)}>.ics</Btn>
               {qr === b.id && (
-                <div className="mt-2 w-full space-y-2">
-                  <QrToken seed={b.id} />
-                  <Btn tone="ok" onClick={() => (act("checkin", b.id), setQr(null))}>
-                    Simulate scan ✓
-                  </Btn>
+                <div className="mt-2 w-full">
+                  <QrToken
+                    roomId={b.roomIds[0]}
+                    onScan={(ok, reason) => {
+                      if (ok) {
+                        act("checkin", b.id);
+                        setQr(null);
+                      } else toast({ title: "Scan rejected", body: reason ?? "Invalid token", tone: "bad" });
+                    }}
+                  />
                 </div>
               )}
             </BookingRow>
@@ -344,7 +365,7 @@ function Chaos() {
       </div>
       {c.optimised && (
         <p className="rounded-lg bg-black/[.03] p-2 text-xs">
-          Optimiser re-seated <b>{c.optimised.moved}</b> bumped bookings into least-disruption alternatives. Today&apos;s utilisation {c.optimised.before}% → <b>{c.optimised.after}%</b>.
+          Optimiser ({c.optimised.via}) re-seated <b>{c.optimised.moved}</b> bumped bookings into least-disruption alternatives. Today&apos;s utilisation {c.optimised.before}% → <b>{c.optimised.after}%</b>.
         </p>
       )}
       <h3 className="font-mono text-[10px] uppercase tracking-widest text-muted">Live decision log</h3>

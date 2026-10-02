@@ -26,7 +26,7 @@ export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean)
 
   return (
     <header className="surface flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2.5">
-      <div className="flex items-center gap-2">
+      <a href="/" className="flex items-center gap-2">
         <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden>
           <rect x="2" y="2" width="28" height="28" rx="4" fill="#1f2933" />
           <path d="M8 9h16v4H13v10H8z" fill="#d3e0ec" />
@@ -36,7 +36,7 @@ export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean)
           <div className="font-display text-lg font-bold">XIE Spaces</div>
           <div className="font-mono text-[10px] tracking-widest text-muted">XAVIER INSTITUTE OF ENGINEERING</div>
         </div>
-      </div>
+      </a>
       <nav className="order-3 flex w-full gap-1 overflow-x-auto md:order-none md:w-auto">
         {NAV.map(([p, label]) => (
           <button
@@ -48,6 +48,9 @@ export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean)
             {p === "approvals" && pending > 0 && <span className="ml-1.5 rounded-full bg-pending px-1.5 text-[10px] text-white">{pending}</span>}
           </button>
         ))}
+        <a href="/swipe" className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium hover:bg-black/5">
+          Swipe
+        </a>
       </nav>
       <div className="ml-auto flex items-center gap-2">
         <label className="flex items-center gap-1.5 text-xs">

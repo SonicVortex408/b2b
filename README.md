@@ -7,8 +7,20 @@ Campus resource booking and conflict resolution for **Xavier Institute of Engine
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # engine tests, incl. the 200-parallel double-booking test
+npm test         # engine + QR tests, incl. the 200-parallel double-booking test
+
+# optional services
+npm run solver   # OR-Tools CP-SAT + forecast (FastAPI, port 8080), then set SOLVER_URL
+npm run mcp      # MCP server over stdio
+npm run bot      # Telegram bot (needs TELEGRAM_BOT_TOKEN)
+cd solver && python -m pytest   # solver tests
 ```
+
+| Route | Screen |
+| --- | --- |
+| `/` | Landing: the satellite footprint draws in and morphs into the plan outline (MorphSVG), then ScrollTrigger explodes the three floors into an isometric stack. Click a floor to open it. |
+| `/map` | Live campus map (`?floor=2` deep-links a level) |
+| `/swipe` | Resource Tinder (mobile-first): swipe right to book, left to skip, up to save, with vibe filters. The card morphs into the confirmation sheet. Installable as a PWA. |
 
 ## What's in this build
 
@@ -27,13 +39,21 @@ npm test         # engine tests, incl. the 200-parallel double-booking test
 | Digital Twin **Simulate Chaos**: 50 requests at 5/s, live decision log, counters, double bookings = 0, before/after, reset | ✅ |
 | Analytics: utilisation heatmap, ghost-booking rate, solar vs load, club leaderboard | ✅ (basic) |
 | Supabase schema with `EXCLUDE USING gist` constraint, RLS, and `book_resources` RPC (`supabase/migrations/0001_init.sql`) | ✅ written, not wired |
+| Landing hero (MorphSVG + ScrollTrigger exploded isometric floors) | ✅ |
+| Resource Tinder `/swipe` (`@use-gesture/react` + GSAP Flip) | ✅ |
+| PWA: manifest, offline service worker, Web Push handler | ✅ (push needs a VAPID sender) |
+| Signed rotating QR: HS256, 60 s TTL, per-room secret (`/api/qr`) | ✅ |
+| Live occupancy ingestion `POST /api/occupancy` | ✅ (in-memory) |
+| FastAPI + OR-Tools CP-SAT auto-scheduler `POST /solver/schedule` (no overlaps, capacity/type/tags, faculty availability, no back-to-back across floors; minimises moves and floor travel) and `/forecast` | ✅ wired into Before/After optimisation |
+| MCP server: `search_availability`, `create_booking`, `explain_decision` | ✅ |
+| Telegram bot (grammY), WhatsApp Cloud API webhook | ✅ (need tokens) |
 
 ### Deviations from the master prompt (flagged)
 
 The prompt asked me to check before deviating from the stack. These are the shortcuts I took to get a working demo in the time available:
 
 1. **Storage is in-browser, not Supabase.** The engine (`src/lib/engine.ts`) runs client-side and persists to `localStorage`. `BroadcastChannel` syncs state across tabs, which stands in for Supabase Realtime. `insertGuarded()` mirrors the exclusion constraint, and `countDoubleBookings()` verifies it. The SQL migration is the production twin, ready for Phase 1 once a Supabase project exists.
-2. **No shadcn/ui, TanStack Query, Inngest, Upstash, FastAPI/OR-Tools, MCP server, Telegram/WhatsApp, or PWA yet.** Escalation SLAs are compressed to minutes for the demo. "Before/After optimisation" uses a greedy re-seat, not CP-SAT.
+2. **No shadcn/ui, TanStack Query, Inngest or Upstash yet.** Escalation SLAs are compressed to minutes for the demo. The forecast is a weekday-seasonal baseline with a trend term, not LightGBM/Prophet. The MCP server, Telegram bot and WhatsApp webhook each run their own seeded engine until Supabase is wired.
 3. **Times are stored as date plus minutes in Asia/Kolkata**, not `timestamptz` (the SQL uses `timestamptz`).
 4. **No auth.** A role switcher (student/faculty/approver/admin `@xie.demo`) replaces Supabase Auth.
 
