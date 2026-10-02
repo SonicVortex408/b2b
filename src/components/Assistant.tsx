@@ -78,10 +78,10 @@ export function Assistant() {
     setTimeout(() => set({ selected: o.room.id }), 60);
   };
 
-  const doBook = (o: Option) => {
+  const doBook = async (o: Option) => {
     if (!res) return;
     if (res.intent.confidence < 0.8) return toast({ title: "Need one more detail", body: res.intent.clarifying_question ?? "Please be more specific.", tone: "warn" });
-    const r = book({ roomIds: [o.room.id], date: o.date, start: o.start, end: o.end, title: `AI booking · ${PURPOSE_LABEL[res.intent.purpose]}`, purpose: res.intent.purpose, attendees: res.intent.min_capacity ?? 10 });
+    const r = await book({ roomIds: [o.room.id], date: o.date, start: o.start, end: o.end, title: `AI booking · ${PURPOSE_LABEL[res.intent.purpose]}`, purpose: res.intent.purpose, attendees: res.intent.min_capacity ?? 10 });
     toast({ title: r.ok ? (r.booking.status === "pending_approval" ? "Request sent" : "Booked ✓") : "Conflict", body: r.event.text, tone: r.ok ? "ok" : "bad" });
     if (r.ok) view(o);
   };

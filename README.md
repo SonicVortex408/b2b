@@ -48,14 +48,25 @@ cd solver && python -m pytest   # solver tests
 | MCP server: `search_availability`, `create_booking`, `explain_decision` | ✅ |
 | Telegram bot (grammY), WhatsApp Cloud API webhook | ✅ (need tokens) |
 
+## Supabase setup
+
+Without Supabase env vars the app runs entirely in the browser (demo mode). With them it switches to the real backend. Every write goes through `/api/engine`, which runs the same engine server-side, takes the caller's role from `profiles` (never from the request), and persists through `apply_engine_changes()`. That function is one transaction guarded by the `EXCLUDE` constraint, and on `23P01` the server reloads and decides again. Supabase Realtime recolours every open map.
+
+1. Copy `.env.example` to `.env.local` and fill in the keys.
+2. Create the schema in **one** of two ways: paste `supabase/migrations/0001_init.sql` into the Supabase SQL Editor, or set `SUPABASE_DB_URL` and run `npm run db:migrate`.
+3. Run `npm run db:seed`. This loads the rooms, two weeks of bookings and the exam blackout, and creates the four `@xie.demo` accounts (password: `DEMO_PASSWORD`).
+4. Run `npm run dev` and sign in.
+
+`tests/db.test.ts` runs the real migration in PGlite (Postgres in WASM) and drives the server write path against it. It covers the exclusion constraint, 200 concurrent bookings, atomic bumps, role checks, and no-show with waitlist promotion.
+
 ### Deviations from the master prompt (flagged)
 
 The prompt asked me to check before deviating from the stack. These are the shortcuts I took to get a working demo in the time available:
 
-1. **Storage is in-browser, not Supabase.** The engine (`src/lib/engine.ts`) runs client-side and persists to `localStorage`. `BroadcastChannel` syncs state across tabs, which stands in for Supabase Realtime. `insertGuarded()` mirrors the exclusion constraint, and `countDoubleBookings()` verifies it. The SQL migration is the production twin, ready for Phase 1 once a Supabase project exists.
+1. **Rules run in the Next.js server, not inside a Postgres RPC.** The engine runs in TypeScript on the server, and Postgres enforces atomicity and the no-overlap guarantee. Without Supabase env vars, everything runs in the browser instead (`localStorage`, with `BroadcastChannel` standing in for Realtime).
 2. **No shadcn/ui, TanStack Query, Inngest or Upstash yet.** Escalation SLAs are compressed to minutes for the demo. The forecast is a weekday-seasonal baseline with a trend term, not LightGBM/Prophet. The MCP server, Telegram bot and WhatsApp webhook each run their own seeded engine until Supabase is wired.
 3. **Times are stored as date plus minutes in Asia/Kolkata**, not `timestamptz` (the SQL uses `timestamptz`).
-4. **No auth.** A role switcher (student/faculty/approver/admin `@xie.demo`) replaces Supabase Auth.
+4. **Auth** is Supabase email/password with the four seeded `@xie.demo` accounts. In demo mode (no env vars), a role switcher stands in for it.
 
 ### Assumptions
 

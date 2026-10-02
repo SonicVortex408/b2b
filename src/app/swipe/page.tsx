@@ -83,9 +83,9 @@ export default function Swipe() {
     });
   };
 
-  const doBook = (card: Card) => {
-    const res = book({ roomIds: [card.room.id], date: today, start: card.start, end: card.start + 60, title: `Swipe booking · ${card.room.short}`, purpose: role === "student" ? "casual" : "academic_class", attendees: Math.min(card.room.capacity ?? 4, 4) });
+  const doBook = async (card: Card) => {
     if (topRef.current) flipState.current = Flip.getState(topRef.current);
+    const res = await book({ roomIds: [card.room.id], date: today, start: card.start, end: card.start + 60, title: `Swipe booking · ${card.room.short}`, purpose: role === "student" ? "casual" : "academic_class", attendees: Math.min(card.room.capacity ?? 4, 4) });
     setConfirm({ card, res });
   };
 

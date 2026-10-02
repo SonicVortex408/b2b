@@ -5,6 +5,8 @@ import { BOOKABLE_ROOMS, ROOM_BY_ID } from "@/data/campus";
 import * as E from "@/lib/engine";
 import { CLUBS, FACULTY, rng, seedState, STUDENTS } from "@/lib/seed";
 import { addDays, DAY_END, DAY_START, nowMinutes, todayISO } from "@/lib/time";
+import { browserClient, REMOTE } from "@/lib/remote/client";
+import type { Op, OpResult } from "@/lib/remote/ops";
 import { HOLDING, type BookingRequest, type BookResult, type Purpose, type Role } from "@/lib/types";
 
 export type Panel = "none" | "bookings" | "approvals" | "conflicts" | "chaos" | "admin";
@@ -40,8 +42,20 @@ export interface ChaosStats {
   optimised?: { before: number; after: number; moved: number; via: "CP-SAT" | "greedy" };
 }
 
+export interface Session {
+  email: string;
+  name: string;
+  role: Role;
+  token: string;
+}
+
+export type BookInput = Omit<BookingRequest, "requester" | "role"> & { requester?: string; role?: Role; asAgent?: boolean };
+
 interface State {
   ready: boolean;
+  remote: boolean;
+  session: Session | null;
+  me: string;
   engine: E.EngineState;
   today: string;
   nowMin: number;
@@ -65,10 +79,13 @@ interface State {
   setFilters: (f: Partial<State["filters"]>) => void;
   toast: (t: Omit<Toast, "id">) => void;
   dismiss: (id: number) => void;
-  book: (req: Omit<BookingRequest, "requester" | "role"> & { requester?: string; role?: Role }) => BookResult;
-  act: (kind: "approve" | "reject" | "cancel" | "release" | "checkin" | "noshow" | "escalate", id: string) => void;
-  waitlist: (req: Omit<BookingRequest, "requester" | "role">) => void;
-  reset: () => void;
+  book: (req: BookInput) => Promise<BookResult>;
+  act: (kind: "approve" | "reject" | "cancel" | "release" | "checkin" | "noshow" | "escalate", id: string, quiet?: boolean) => Promise<void>;
+  waitlist: (req: Omit<BookingRequest, "requester" | "role">) => Promise<void>;
+  reset: () => Promise<void>;
+  refresh: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signOut: () => Promise<void>;
   runChaos: () => void;
   optimise: () => Promise<void>;
 }
@@ -104,6 +121,40 @@ export const useStore = create<State>((set, get) => {
     set((st) => ({ flashes: { ...st.flashes, ...Object.fromEntries(roomIds.map((id) => [id, { tone, at: now }])) } }));
   }
 
+  /** Remote write: the server re-runs rules with the caller's real role, then persists atomically. */
+  async function exec(op: Op): Promise<OpResult & { error?: string }> {
+    const token = get().session?.token;
+    const res = await fetch("/api/engine", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(op),
+    }).catch(() => null);
+    const out = res ? await res.json().catch(() => ({ error: "Bad response" })) : { error: "Network error" };
+    if (op.type !== "sweep") void get().refresh();
+    return out;
+  }
+
+  const failed = (roomIds: string[], text: string): BookResult => ({
+    ok: false,
+    code: "RULE",
+    event: { id: `err-${Date.now()}`, at: Date.now(), kind: "rejected_rule", roomIds, text },
+    alternatives: [],
+  });
+
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleRefresh = () => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => void get().refresh(), 250);
+  };
+
+  async function applySession(session: { access_token: string; user: { id: string; email?: string } } | null) {
+    if (!session) return set({ session: null, me: "Guest", role: "student" });
+    const { data } = await browserClient().from("profiles").select("full_name, role").eq("id", session.user.id).single();
+    const name = data?.full_name ?? session.user.email ?? "User";
+    const role = (data?.role ?? "student") as Role;
+    set({ session: { email: session.user.email ?? "", name, role, token: session.access_token }, me: name, role });
+  }
+
   function toneOf(r: BookResult): Toast["tone"] {
     if (r.ok) return r.bumped ? "warn" : r.booking.status === "pending_approval" ? "warn" : "ok";
     return "bad";
@@ -111,6 +162,9 @@ export const useStore = create<State>((set, get) => {
 
   return {
     ready: false,
+    remote: REMOTE,
+    session: null,
+    me: REMOTE ? "Guest" : ME.student,
     engine: { bookings: [], events: [], bumps: {}, waitlist: [], blackouts: [], points: {}, seq: 0 },
     today: "",
     nowMin: DAY_START,
@@ -130,6 +184,21 @@ export const useStore = create<State>((set, get) => {
     init() {
       const today = todayISO();
       const nowMin = nowMinutes();
+      const time0 = Math.min(DAY_END - 15, Math.max(DAY_START, Math.floor(nowMin / 15) * 15));
+      if (REMOTE) {
+        if (get().ready || get().today) return;
+        set({ today, nowMin, date: today, time: time0, liveFeed: false });
+        const sb = browserClient();
+        void sb.auth.getSession().then(({ data }) => applySession(data.session));
+        sb.auth.onAuthStateChange((_e, session) => void applySession(session));
+        void get().refresh().finally(() => set({ ready: true }));
+        // Supabase Realtime: any booking/decision change anywhere recolours the map.
+        sb.channel("live-map")
+          .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, scheduleRefresh)
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "conflict_events" }, scheduleRefresh)
+          .subscribe();
+        return;
+      }
       let engine: E.EngineState | null = null;
       try {
         const raw = localStorage.getItem(KEY);
@@ -148,6 +217,10 @@ export const useStore = create<State>((set, get) => {
     tick() {
       const nowMin = nowMinutes();
       set({ nowMin });
+      if (REMOTE) {
+        void exec({ type: "sweep" });
+        return;
+      }
       const n = mutate((s) => E.sweepNoShows(s, ctxOf(get())));
       if (n) get().toast({ title: "Ghost bookings released", body: `${n} room(s) freed after missed QR check-in.`, tone: "warn" });
 
@@ -171,7 +244,8 @@ export const useStore = create<State>((set, get) => {
 
     set: (p) => set(p),
     setRole: (role) => {
-      set({ role });
+      if (REMOTE) return;
+      set({ role, me: ME[role] });
       get().toast({ title: `Signed in as ${ME[role]}`, body: `Role: ${role}. Rules, advance windows and approval tiers now apply as ${role}.`, tone: "info" });
     },
     setFilters: (f) => set((st) => ({ filters: { ...st.filters, ...f } })),
@@ -182,41 +256,90 @@ export const useStore = create<State>((set, get) => {
     },
     dismiss: (id) => set((st) => ({ toasts: st.toasts.filter((t) => t.id !== id) })),
 
-    book(req) {
+    async book(req) {
       const st = get();
-      const full: BookingRequest = { ...req, requester: req.requester ?? ME[st.role], role: req.role ?? st.role };
-      const res = mutate((s) => E.bookResources(s, full, ctxOf(st)));
+      const { asAgent, ...rest } = req;
+      const full: BookingRequest = { ...rest, requester: rest.requester ?? st.me, role: rest.role ?? st.role };
+      let res: BookResult;
+      if (REMOTE) {
+        if (!st.session) return failed(full.roomIds, "Sign in to book rooms.");
+        const out = await exec({ type: "book", req: full, asAgent });
+        res = out.result ?? failed(full.roomIds, out.error ?? "Booking failed.");
+      } else res = mutate((s) => E.bookResources(s, full, ctxOf(st)));
       flash(full.roomIds, toneOf(res));
       return res;
     },
 
-    act(kind, id) {
+    async act(kind, id, quiet) {
       const st = get();
       const ctx = ctxOf(st);
       const b = st.engine.bookings.find((x) => x.id === id);
-      mutate((s) => {
-        if (kind === "approve") E.approve(s, id, ME[st.role]);
-        if (kind === "reject") E.reject(s, id, ME[st.role], "Not available for this purpose.", ctx);
-        if (kind === "cancel") E.cancel(s, id, ctx);
-        if (kind === "release") E.releaseEarly(s, id, ctx);
-        if (kind === "checkin") E.checkIn(s, id);
-        if (kind === "noshow") E.markNoShow(s, id, ctx);
-        if (kind === "escalate") E.escalate(s, id);
-      });
+      let text: string | undefined;
+      if (REMOTE) {
+        const out = await exec({ type: "act", kind, id });
+        if (out.error) return get().toast({ title: "Not allowed", body: out.error, tone: "bad" });
+        text = out.text;
+      } else {
+        mutate((s) => {
+          if (kind === "approve") E.approve(s, id, st.me);
+          if (kind === "reject") E.reject(s, id, st.me, "Not available for this purpose.", ctx);
+          if (kind === "cancel") E.cancel(s, id, ctx);
+          if (kind === "release") E.releaseEarly(s, id, ctx);
+          if (kind === "checkin") E.checkIn(s, id);
+          if (kind === "noshow") E.markNoShow(s, id, ctx);
+          if (kind === "escalate") E.escalate(s, id);
+        });
+        text = get().engine.events[0]?.text;
+      }
       if (b) flash(b.roomIds, kind === "approve" || kind === "checkin" ? "ok" : "warn");
-      const ev = get().engine.events[0];
-      if (ev) get().toast({ title: kind === "checkin" ? "Checked in" : kind[0].toUpperCase() + kind.slice(1), body: ev.text, tone: kind === "approve" || kind === "checkin" ? "ok" : "warn" });
+      if (text && !quiet) get().toast({ title: kind === "checkin" ? "Checked in" : kind[0].toUpperCase() + kind.slice(1), body: text, tone: kind === "approve" || kind === "checkin" ? "ok" : "warn" });
     },
 
-    waitlist(req) {
+    async waitlist(req) {
       const st = get();
-      mutate((s) => E.joinWaitlist(s, { ...req, requester: ME[st.role], role: st.role }));
+      if (REMOTE) {
+        if (!st.session) return get().toast({ title: "Sign in first", body: "Sign in to join the waitlist.", tone: "warn" });
+        const out = await exec({ type: "waitlist", req: { ...req, requester: st.me, role: st.role } });
+        if (out.error) return get().toast({ title: "Waitlist failed", body: out.error, tone: "bad" });
+      } else mutate((s) => E.joinWaitlist(s, { ...req, requester: st.me, role: st.role }));
       get().toast({ title: "Joined waitlist", body: "You'll be auto-promoted the moment this slot frees up.", tone: "info" });
     },
 
-    reset() {
+    async refresh() {
+      if (!REMOTE) return;
+      const res = await fetch("/api/engine", { cache: "no-store" }).catch(() => null);
+      if (!res?.ok) {
+        if (!get().ready) get().toast({ title: "Can't reach the database", body: "Check the Supabase env vars and that migrations ran (npm run db:setup).", tone: "bad" });
+        return;
+      }
+      const next: E.EngineState = await res.json();
+      // Pulse rooms whose bookings changed elsewhere (other users, other tabs, chat channels).
+      const prev = new Map(get().engine.bookings.map((b) => [b.id, b.status]));
+      const changed = next.bookings.filter((b) => prev.size && prev.get(b.id) !== b.status).flatMap((b) => b.roomIds);
+      set({ engine: next });
+      if (changed.length) flash([...new Set(changed)], "info");
+    },
+
+    async signIn(email, password) {
+      const { error } = await browserClient().auth.signInWithPassword({ email, password });
+      return error ? error.message : null;
+    },
+
+    async signOut() {
+      await browserClient().auth.signOut();
+    },
+
+    async reset() {
       if (chaosTimer) clearInterval(chaosTimer);
       const st = get();
+      if (REMOTE) {
+        const res = await fetch("/api/admin/reset", { method: "POST", headers: { authorization: `Bearer ${st.session?.token ?? ""}` } });
+        const out = await res.json();
+        if (!res.ok) return get().toast({ title: "Reset failed", body: out.error, tone: "bad" });
+        await get().refresh();
+        set({ chaos: emptyChaos, flashes: {}, selected: null });
+        return get().toast({ title: "Seed state restored", body: `Database reset in ${(out.ms / 1000).toFixed(1)} s.`, tone: "info" });
+      }
       const engine = seedState(st.today, nowMinutes());
       set({ engine, chaos: emptyChaos, flashes: {}, selected: null });
       save(engine, st.today);
@@ -226,6 +349,8 @@ export const useStore = create<State>((set, get) => {
     runChaos() {
       if (get().chaos.running) return;
       const st = get();
+      if (REMOTE && st.session?.role !== "admin")
+        return get().toast({ title: "Admin only", body: "Sign in as admin@xie.demo to run Simulate Chaos against the live database.", tone: "warn" });
       set({ panel: "chaos", liveFeed: false, date: st.today, chaos: { ...emptyChaos, running: true } });
       const r = rng(Date.now() & 0xffff);
       const pickOne = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
@@ -259,25 +384,32 @@ export const useStore = create<State>((set, get) => {
       });
 
       let i = 0;
-      chaosTimer = setInterval(() => {
+      let inFlight = 0;
+      const finish = async () => {
+        if (REMOTE) await get().refresh();
+        const dbl = E.countDoubleBookings(get().engine);
+        set((s0) => ({ chaos: { ...s0.chaos, running: false, doubleBookings: dbl } }));
+        get().toast({ title: "Chaos resolved", body: `50 requests processed. Double bookings: ${dbl}.`, tone: dbl ? "bad" : "ok" });
+      };
+      chaosTimer = setInterval(async () => {
         const req = reqs[i++];
         if (!req) {
           clearInterval(chaosTimer!);
-          const dbl = E.countDoubleBookings(get().engine);
-          set((s0) => ({ chaos: { ...s0.chaos, running: false, doubleBookings: dbl } }));
-          get().toast({ title: "Chaos resolved", body: `50 requests processed. Double bookings: ${dbl}.`, tone: dbl ? "bad" : "ok" });
+          const wait = setInterval(() => {
+            if (inFlight) return;
+            clearInterval(wait);
+            void finish();
+          }, 100);
           return;
         }
-        const ctx = ctxOf(get());
-        const res = mutate((s) => {
-          const out = E.bookResources(s, req, ctx);
-          if (out.ok && out.booking.status === "pending_approval" && r() < 0.3) E.escalate(s, out.booking.id);
-          return out;
-        });
-        flash(req.roomIds, toneOf(res));
+        const sent = i;
+        inFlight++;
+        const res = await get().book({ ...req, asAgent: true });
+        inFlight--;
+        if (res.ok && res.booking.status === "pending_approval" && r() < 0.3) await get().act("escalate", res.booking.id, true);
         const kind = res.event.kind;
         set((s0) => {
-          const c = { ...s0.chaos, sent: i, doubleBookings: E.countDoubleBookings(s0.engine) };
+          const c = { ...s0.chaos, sent: Math.max(s0.chaos.sent, sent), doubleBookings: E.countDoubleBookings(s0.engine) };
           if (res.ok) {
             if (res.booking.status === "pending_approval") c.pending++;
             else c.confirmed++;
@@ -285,7 +417,7 @@ export const useStore = create<State>((set, get) => {
               c.bumped++;
               c.conflicts++;
             }
-            if (s0.engine.events[0]?.kind === "escalated") c.escalated++;
+            if (s0.engine.events.some((e) => e.kind === "escalated" && e.bookingId === res.booking.id)) c.escalated++;
           } else {
             if (res.code === "23P01") c.conflicts++;
             if (kind === "negotiate") c.negotiated++;
@@ -343,30 +475,36 @@ export const useStore = create<State>((set, get) => {
           if (res.ok) {
             const out: { assignments: { event_id: string; room: string; slot: number }[] } = await res.json();
             via = "CP-SAT";
-            mutate((s) => {
-              for (const a of out.assignments) {
-                const src = s.bookings.find((b) => b.id === a.event_id);
-                if (!src) continue;
-                const start = DAY_START + a.slot * 30;
-                const r = E.bookResources(s, { ...src, roomIds: [a.room], start, end: start + (src.end - src.start) }, ctx);
-                if (r.ok) moved++;
-              }
-            });
+            for (const a of out.assignments) {
+              const src = victims.find((b) => b.id === a.event_id);
+              if (!src) continue;
+              const start = DAY_START + a.slot * 30;
+              if ((await get().book({ ...reqOf(src), roomIds: [a.room], start, end: start + (src.end - src.start), asAgent: true })).ok) moved++;
+            }
           }
         } catch {}
         if (via === "greedy")
-          mutate((s) => {
-            for (const v of victims) {
-              const src = s.bookings.find((b) => b.id === v.id);
-              const alt = src && E.alternatives(s, src, ctx, 1)[0];
-              if (!src || !alt) continue;
-              if (E.bookResources(s, { ...src, roomIds: [alt.roomId], date: alt.date, start: alt.start, end: alt.end }, ctx).ok) moved++;
-            }
-          });
+          for (const src of victims) {
+            const alt = E.alternatives(get().engine, src, ctx, 1)[0];
+            if (alt && (await get().book({ ...reqOf(src), roomIds: [alt.roomId], date: alt.date, start: alt.start, end: alt.end, asAgent: true })).ok) moved++;
+          }
       }
       set((s0) => ({ chaos: { ...s0.chaos, optimised: { before, after: util(get().engine), moved, via } } }));
     },
   };
+});
+
+const reqOf = (b: E.EngineState["bookings"][number]): BookingRequest => ({
+  roomIds: b.roomIds,
+  date: b.date,
+  start: b.start,
+  end: b.end,
+  title: b.title,
+  requester: b.requester,
+  role: b.role,
+  club: b.club,
+  purpose: b.purpose,
+  attendees: b.attendees,
 });
 
 function fmt(min: number) {

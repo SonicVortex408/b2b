@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { AuthControl } from "./AuthControl";
 import { addDays, DAY_END, DAY_START, fmtDate, fmtTime, nowMinutes } from "@/lib/time";
 import type { Role } from "@/lib/types";
 import { useStore, type Panel } from "@/store/useStore";
@@ -16,6 +17,7 @@ const NAV: [Panel, string][] = [
 ];
 
 export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean) => void }) {
+  const remote = useStore((s) => s.remote);
   const role = useStore((s) => s.role);
   const setRole = useStore((s) => s.setRole);
   const panel = useStore((s) => s.panel);
@@ -53,15 +55,19 @@ export function Header({ dark, setDark }: { dark: boolean; setDark: (d: boolean)
         </a>
       </nav>
       <div className="ml-auto flex items-center gap-2">
+        {remote ? (
+          <AuthControl />
+        ) : (
         <label className="flex items-center gap-1.5 text-xs">
-          <span className="hidden text-muted sm:inline">Signed in as</span>
-          <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="rounded-md border border-[var(--line)] bg-transparent px-2 py-1.5 text-sm font-medium" aria-label="Demo role">
-            <option value="student">student@xie.demo</option>
-            <option value="faculty">faculty@xie.demo</option>
-            <option value="approver">approver@xie.demo</option>
-            <option value="admin">admin@xie.demo</option>
-          </select>
-        </label>
+            <span className="hidden text-muted sm:inline">Signed in as</span>
+            <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="rounded-md border border-[var(--line)] bg-transparent px-2 py-1.5 text-sm font-medium" aria-label="Demo role">
+              <option value="student">student@xie.demo</option>
+              <option value="faculty">faculty@xie.demo</option>
+              <option value="approver">approver@xie.demo</option>
+              <option value="admin">admin@xie.demo</option>
+            </select>
+          </label>
+        )}
         <button onClick={() => setDark(!dark)} className="grid h-8 w-8 place-items-center rounded-md border border-[var(--line)]" aria-label="Toggle dark mode">
           {dark ? "☀" : "☾"}
         </button>

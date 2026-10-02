@@ -6,7 +6,7 @@ import { BOOKABLE_ROOMS, FLOORS, ROOM_BY_ID } from "@/data/campus";
 import { PURPOSE_LABEL } from "@/lib/engine";
 import { DAY_END, DAY_START, fmtDate, fmtTime, pad } from "@/lib/time";
 import { HOLDING, type Booking, type DecisionKind } from "@/lib/types";
-import { ME, roomName, useStore } from "@/store/useStore";
+import { roomName, useStore } from "@/store/useStore";
 import { ScoreBars } from "./ScoreBars";
 
 export function PanelDrawer() {
@@ -151,7 +151,7 @@ function MyBookings() {
   const bookings = useStore((s) => s.engine.bookings);
   const act = useStore((s) => s.act);
   const toast = useStore((s) => s.toast);
-  const me = ME[role];
+  const me = useStore((s) => s.me);
   const mine = bookings.filter((b) => b.requester === me).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   const upcoming = mine.filter((b) => HOLDING.includes(b.status));
   const past = mine.filter((b) => !HOLDING.includes(b.status));
@@ -159,7 +159,7 @@ function MyBookings() {
   return (
     <div className="space-y-5">
       <p className="text-xs text-muted">
-        Showing bookings for <b>{me}</b>. Click a room on the map to book.
+        Showing bookings for <b>{me}</b>{role ? ` (${role})` : ""}. Click a room on the map to book.
       </p>
       <section>
         <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Upcoming ({upcoming.length})</h3>

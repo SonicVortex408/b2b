@@ -8,7 +8,7 @@ import { initialStatus, PURPOSE_LABEL, score } from "@/lib/engine";
 import { bookingsFor, freeSlots, liveState, STATE_META } from "@/lib/status";
 import { DAY_END, DAY_START, fmtDate, fmtTime } from "@/lib/time";
 import type { BookResult, Purpose, Room } from "@/lib/types";
-import { ME, roomName, useStore } from "@/store/useStore";
+import { roomName, useStore } from "@/store/useStore";
 import { FloorMap } from "./FloorMap";
 import { ScoreBars } from "./ScoreBars";
 
@@ -34,6 +34,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
   const today = useStore((s) => s.today);
   const nowMin = useStore((s) => s.nowMin);
   const role = useStore((s) => s.role);
+  const me = useStore((s) => s.me);
   const book = useStore((s) => s.book);
   const act = useStore((s) => s.act);
   const waitlist = useStore((s) => s.waitlist);
@@ -53,7 +54,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
   const day = bookingsFor(engine, room.id, date);
   const nextSlot = slots[0];
   const needsApproval = initialStatus({ roomIds: [room.id], date, start: 0, end: 0, title: "", requester: "", role, purpose, attendees }) === "pending_approval";
-  const myScore = score(engine, { purpose, role, date, start: startFrom, requester: ME[role] }, { today, nowMin });
+  const myScore = score(engine, { purpose, role, date, start: startFrom, requester: me }, { today, nowMin });
 
   // ---- GSAP Flip: the room shape expands into this card
   useLayoutEffect(() => {
@@ -80,8 +81,8 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
     Flip.fit(card, proxyRef.current!, { scale: false, absolute: true, duration: 0.45, ease: "power3.inOut", onComplete: onClose });
   };
 
-  const doBook = (start: number, roomId = room.id, d = date) => {
-    const res = book({ roomIds: [roomId], date: d, start, end: start + dur, title: title || `${PURPOSE_LABEL[purpose]} · ${ME[role]}`, purpose, attendees });
+  const doBook = async (start: number, roomId = room.id, d = date) => {
+    const res = await book({ roomIds: [roomId], date: d, start, end: start + dur, title: title || `${PURPOSE_LABEL[purpose]} · ${me}`, purpose, attendees });
     setResult(res);
     if (res.ok && roomId !== room.id) setStore({ selected: roomId });
   };
@@ -209,7 +210,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
               {day.length === 0 && <li className="text-xs text-muted">Nothing booked yet.</li>}
               {day.map((b) => {
                 const m = STATE_META[b.status === "pending_approval" ? "pending" : b.status === "checked_in" ? "inuse" : b.status === "completed" ? "blackout" : "booked"];
-                const mine = b.requester === ME[role];
+                const mine = b.requester === me;
                 return (
                   <li key={b.id} className="flex items-start gap-2 rounded-md border-l-4 bg-black/[.03] px-2 py-1.5 text-xs" style={{ borderColor: m.dot }}>
                     <div className="min-w-0 flex-1">
