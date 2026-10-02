@@ -75,6 +75,11 @@ export default function DoorDisplay() {
         <div className="rounded-3xl bg-white p-5 text-center text-navy">
           {tok && origin && <QrSvg value={`${origin}/checkin?room=${room.id}&t=${tok.token}`} className="[&>svg]:h-auto [&>svg]:w-full" />}
           <div className="mt-2 font-mono text-xs text-muted">signed code rotates in {left}s</div>
+          {tok && origin && (
+            <a href={`${origin}/checkin?room=${room.id}&t=${tok.token}`} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs font-semibold text-brand underline">
+              No phone? Open this code here
+            </a>
+          )}
         </div>
       </div>
     </main>
