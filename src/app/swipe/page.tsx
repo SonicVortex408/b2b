@@ -93,9 +93,14 @@ export default function Swipe() {
   useLayoutEffect(() => {
     if (!confirm || !sheetRef.current || !flipState.current) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    Flip.from(flipState.current, { targets: sheetRef.current, duration: 0.55, ease: "power3.inOut", absolute: true, scale: false });
-    gsap.from(sheetRef.current.querySelectorAll("[data-in]"), { opacity: 0, y: 14, stagger: 0.06, delay: 0.35 });
+    const state = flipState.current;
     flipState.current = null;
+    const sheet = sheetRef.current;
+    const ctx = gsap.context(() => {
+      Flip.from(state, { targets: sheet, duration: 0.55, ease: "power3.inOut", absolute: true, scale: false });
+      gsap.from(sheet.querySelectorAll("[data-in]"), { opacity: 0, y: 14, stagger: 0.06, delay: 0.35 });
+    });
+    return () => ctx.revert();
   }, [confirm]);
 
   const bind = useDrag(

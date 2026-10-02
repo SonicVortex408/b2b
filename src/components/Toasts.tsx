@@ -10,7 +10,9 @@ function Item({ t }: { t: Toast }) {
   const ref = useRef<HTMLLIElement>(null);
   const dismiss = useStore((s) => s.dismiss);
   useLayoutEffect(() => {
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) gsap.from(ref.current, { x: -40, opacity: 0, duration: 0.4, ease: "back.out(1.6)" });
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = gsap.context(() => gsap.from(ref.current, { x: -40, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }));
+    return () => ctx.revert();
   }, []);
   return (
     <li ref={ref} className="surface pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-xl">

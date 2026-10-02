@@ -40,8 +40,9 @@ export function Assistant() {
   };
 
   useLayoutEffect(() => {
-    if (res && boxRef.current && !window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-      gsap.from(boxRef.current.querySelectorAll("[data-option]"), { y: 20, opacity: 0, scale: 0.96, stagger: 0.08, duration: 0.4, ease: "back.out(1.4)" });
+    if (!res || !boxRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = gsap.context(() => gsap.from(boxRef.current!.querySelectorAll("[data-option]"), { y: 20, opacity: 0, scale: 0.96, stagger: 0.08, duration: 0.4, ease: "back.out(1.4)" }));
+    return () => ctx.revert();
   }, [res]);
 
   async function ask(q = text) {

@@ -68,16 +68,17 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
     const proxy = proxyRef.current!;
     const content = card.querySelectorAll("[data-stagger]");
     if (reduced()) return;
-    Flip.fit(card, proxy, { scale: false, absolute: true });
-    const state = Flip.getState(card);
-    gsap.set(card, { clearProps: "left,top,width,height,transform,position" });
-    Flip.from(state, { duration: 0.6, ease: "power3.inOut", absolute: true, scale: false });
-    gsap.fromTo(card, { backgroundColor: origin.fill.startsWith("url") ? "#fdecea" : origin.fill, borderRadius: 2 }, { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#fff", borderRadius: 18, duration: 0.6, ease: "power2.out" });
-    gsap.from(content, { opacity: 0, y: 12, duration: 0.35, stagger: 0.04, delay: 0.35, ease: "power2.out" });
-    return () => {
-      gsap.killTweensOf(card);
-      gsap.killTweensOf(content);
-    };
+    // gsap.context + revert: under React StrictMode (dev) effects run twice; reverting restores the
+    // original styles so a killed half-finished tween can't leave the card content invisible.
+    const ctx = gsap.context(() => {
+      Flip.fit(card, proxy, { scale: false, absolute: true });
+      const state = Flip.getState(card);
+      gsap.set(card, { clearProps: "left,top,width,height,transform,position" });
+      Flip.from(state, { duration: 0.6, ease: "power3.inOut", absolute: true, scale: false });
+      gsap.fromTo(card, { backgroundColor: origin.fill.startsWith("url") ? "#fdecea" : origin.fill, borderRadius: 2 }, { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#fff", borderRadius: 18, duration: 0.6, ease: "power2.out", clearProps: "backgroundColor" });
+      gsap.from(content, { opacity: 0, y: 12, duration: 0.35, stagger: 0.04, delay: 0.35, ease: "power2.out" });
+    }, card);
+    return () => ctx.revert();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
@@ -383,7 +384,9 @@ function Timeline({ bookings, time, onPick }: { bookings: ReturnType<typeof book
 function Outcome({ result, onPick, onDismiss }: { result: BookResult; onPick: (a: { roomId: string; start: number; date: string }) => void; onDismiss: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    if (!reduced()) gsap.from(ref.current, { height: 0, opacity: 0, duration: 0.35, ease: "power2.out" });
+    if (reduced()) return;
+    const ctx = gsap.context(() => gsap.from(ref.current, { height: 0, opacity: 0, duration: 0.35, ease: "power2.out" }));
+    return () => ctx.revert();
   }, [result]);
   const tone = result.ok ? (result.booking.status === "pending_approval" ? "pending" : "free") : "busy";
   const box = { pending: "border-pending/40 bg-pending/10", free: "border-free/40 bg-free/10", busy: "border-busy/40 bg-busy/10" }[tone];

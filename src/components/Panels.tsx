@@ -16,8 +16,9 @@ export function PanelDrawer() {
   const set = useStore((s) => s.set);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    if (panel !== "none" && ref.current && !window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-      gsap.from(ref.current, { xPercent: 105, duration: 0.45, ease: "power3.out" });
+    if (panel === "none" || !ref.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = gsap.context(() => gsap.from(ref.current, { xPercent: 105, duration: 0.45, ease: "power3.out" }));
+    return () => ctx.revert();
   }, [panel]);
   if (panel === "none") return null;
   const titles = { bookings: "My bookings", approvals: "Approver console", conflicts: "Conflict center", chaos: "Digital Twin · Simulate Chaos", admin: "Admin & analytics", notifications: "Notifications", swaps: "Swap marketplace" } as const;

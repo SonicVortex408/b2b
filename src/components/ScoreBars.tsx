@@ -17,7 +17,8 @@ export function ScoreBars({ a, b, aLabel, bLabel }: { a: ScoreBreakdown; b: Scor
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    gsap.from(ref.current!.querySelectorAll("[data-bar]"), { scaleX: 0, transformOrigin: "left", duration: 0.7, stagger: 0.05, ease: "power3.out" });
+    const ctx = gsap.context(() => gsap.from(ref.current!.querySelectorAll("[data-bar]"), { scaleX: 0, transformOrigin: "left", duration: 0.7, stagger: 0.05, ease: "power3.out" }));
+    return () => ctx.revert();
   }, [a, b]);
   return (
     <div ref={ref} className="mt-2 rounded-md bg-[var(--surface)] p-2">
