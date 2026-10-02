@@ -3,6 +3,7 @@
  * through the same engine and rules as the web app.
  *   npx tsx integrations/mcp-server.ts
  */
+import "../scripts/env";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";

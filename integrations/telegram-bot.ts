@@ -2,6 +2,7 @@
  * XIE Spaces Telegram bot (grammY). Same intent parser + engine as the web assistant.
  *   TELEGRAM_BOT_TOKEN=... npx tsx integrations/telegram-bot.ts
  */
+import "../scripts/env";
 import { Bot, InlineKeyboard } from "grammy";
 import { parseIntent } from "@/lib/intent";
 import { create, search } from "@/lib/server/host";

@@ -1,4 +1,5 @@
 /** Applies supabase/migrations/*.sql in order using SUPABASE_DB_URL (Connect → connection string). */
+import "./env";
 import { readdirSync, readFileSync } from "node:fs";
 import postgres from "postgres";
 
