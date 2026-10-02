@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-paper: #f5f3ee;
+  --color-navy: #1f2933;
+  --color-ink: #1f2933;
+  --color-muted: #6b7280;
+  --color-corridor: #e7e3dc;
+  --color-lilac: #e8d3e3;
+  --color-powder: #d3e0ec;
+  --color-sand: #f1e0bf;
+  --color-sage: #d7e6cf;
+  --color-turf: #eef3e9;
+  --color-free: #16a34a;
+  --color-busy: #dc2626;
+  --color-pending: #d97706;
+  --color-inuse: #2563eb;
+  --color-blackout: #9ca3af;
+  --color-brand: #1d4ed8;
+}
+
+:root {
+  --bg: #f5f3ee;
+  --surface: #ffffff;
+  --text: #1f2933;
+  --line: #e5e1d8;
+  --canvas: #eef1f5;
+  color-scheme: light;
+}
+.dark {
+  --bg: #12171d;
+  --surface: #1b222b;
+  --text: #e8e6e1;
+  --line: #2c3540;
+  --canvas: #161c23;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.surface {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+/* map */
+.room-shape {
+  transition: fill 0.35s ease, stroke-width 0.15s ease, filter 0.15s ease;
+  cursor: pointer;
+}
+.room:hover .room-shape,
+.room:focus-visible .room-shape {
+  stroke: #1d4ed8;
+  stroke-width: 4;
+  filter: drop-shadow(0 4px 10px rgba(29, 78, 216, 0.25));
+}
+.room:focus {
+  outline: none;
+}
+.room.dimmed {
+  opacity: 0.28;
+}
+
+@keyframes vacancy-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+.vacancy-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: vacancy-pulse 1.8s ease-out infinite;
+}
+@keyframes flash {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.room-flash {
+  animation: flash 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+input[type="range"].scrubber {
+  accent-color: #1d4ed8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vacancy-ring,
+  .room-flash {
+    animation: none;
+  }
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #c9c4b9;
+  border-radius: 6px;
+}
