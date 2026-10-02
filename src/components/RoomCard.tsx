@@ -9,6 +9,7 @@ import { bookingsFor, freeSlots, liveState, STATE_META } from "@/lib/status";
 import { DAY_END, DAY_START, fmtDate, fmtTime } from "@/lib/time";
 import type { BookResult, Purpose, Room } from "@/lib/types";
 import { roomName, useStore } from "@/store/useStore";
+import { useT } from "@/i18n";
 import { FloorMap } from "./FloorMap";
 import { ScoreBars } from "./ScoreBars";
 
@@ -50,6 +51,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
   const [pick, setPick] = useState<{ start: number; roomId: string; date: string; expires: number } | null>(null);
   const [, tickNow] = useState(0);
   const dispatch = useStore((s) => s.dispatch);
+  const t = useT();
 
   const live = liveState(engine, room.id, date, time, today, nowMin);
   const meta = STATE_META[live.state];
@@ -72,6 +74,10 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
     Flip.from(state, { duration: 0.6, ease: "power3.inOut", absolute: true, scale: false });
     gsap.fromTo(card, { backgroundColor: origin.fill.startsWith("url") ? "#fdecea" : origin.fill, borderRadius: 2 }, { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#fff", borderRadius: 18, duration: 0.6, ease: "power2.out" });
     gsap.from(content, { opacity: 0, y: 12, duration: 0.35, stagger: 0.04, delay: 0.35, ease: "power2.out" });
+    return () => {
+      gsap.killTweensOf(card);
+      gsap.killTweensOf(content);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
@@ -153,7 +159,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
             <p className="text-[15px]">
               {live.state === "free" ? (
                 <>
-                  This space is <b>available!</b>
+                  <b>{t("card.available")}</b>
                 </>
               ) : (
                 <>
@@ -172,14 +178,14 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
               onClick={() => nextSlot != null && selectSlot(nextSlot)}
               className="mt-3 w-full rounded-md bg-free py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
             >
-              {nextSlot != null ? `${verb} for ${fmtTime(nextSlot)}` : "No free slots left today"}
+              {nextSlot != null ? `${t(needsApproval ? "card.request" : "card.book")} ${fmtTime(nextSlot)}` : "No free slots left today"}
             </button>
             {live.state !== "free" && (
               <button
                 onClick={() => waitlist({ roomIds: [room.id], date, start: time, end: time + dur, title: title || "Waitlisted", purpose, attendees })}
                 className="mt-2 w-full rounded-md border border-[var(--line)] py-2 text-sm font-medium hover:bg-black/5"
               >
-                Join waitlist for {fmtTime(time)}
+                {t("card.waitlist")} {fmtTime(time)}
               </button>
             )}
             {live.state !== "free" && live.booking && (
@@ -259,7 +265,7 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
           </section>
 
           <section data-stagger>
-            <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Other available times</h4>
+            <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">{t("card.otherTimes")}</h4>
             <div className="grid grid-cols-4 gap-1.5">
               {slots.slice(1, more ? 16 : 8).map((t) => (
                 <button key={t} onClick={() => selectSlot(t)} className="rounded-md border border-free/60 py-1.5 text-xs font-medium text-free transition hover:bg-free hover:text-white">
@@ -273,12 +279,12 @@ export function RoomCard({ room, origin, onClose }: { room: Room; origin: Origin
           </section>
 
           <section data-stagger>
-            <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Today&apos;s timeline</h4>
+            <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">{t("card.timeline")}</h4>
             <Timeline bookings={day} time={time} onPick={(t) => setStore({ time: t })} />
           </section>
 
           <section data-stagger>
-            <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">Scheduled bookings</h4>
+            <h4 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">{t("card.scheduled")}</h4>
             <ul className="space-y-1.5">
               {day.length === 0 && <li className="text-xs text-muted">Nothing booked yet.</li>}
               {day.map((b) => {

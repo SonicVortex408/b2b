@@ -229,6 +229,10 @@ export const useStore = create<State>((set, get) => {
         }
       } catch {}
       engine ??= seedState(today, nowMin);
+      try {
+        const r = localStorage.getItem("xie-role") as Role | null;
+        if (r && r in ME) set({ role: r, me: ME[r] });
+      } catch {}
       const time = Math.min(DAY_END - 15, Math.max(DAY_START, Math.floor(nowMin / 15) * 15));
       set({ ready: true, engine, today, nowMin, date: today, time });
       save(engine, today);
@@ -271,6 +275,9 @@ export const useStore = create<State>((set, get) => {
     setRole: (role) => {
       if (REMOTE) return;
       set({ role, me: ME[role] });
+      try {
+        localStorage.setItem("xie-role", role);
+      } catch {}
       get().toast({ title: `Signed in as ${ME[role]}`, body: `Role: ${role}. Rules, advance windows and approval tiers now apply as ${role}.`, tone: "info" });
     },
     setFilters: (f) => set((st) => ({ filters: { ...st.filters, ...f } })),

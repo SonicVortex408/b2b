@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Assistant } from "@/components/Assistant";
 import { FloorMap } from "@/components/FloorMap";
 import { GridView } from "@/components/GridView";
@@ -11,6 +11,7 @@ import { Header, Toolbar, useView } from "@/components/Toolbar";
 import { ROOM_BY_ID } from "@/data/campus";
 import { STATE_META, type LiveState } from "@/lib/status";
 import type { Room } from "@/lib/types";
+import { useT, type Key } from "@/i18n";
 import { useStore } from "@/store/useStore";
 
 function originOf(el: Element): Origin {
@@ -27,6 +28,10 @@ export default function Home() {
   const set = useStore((s) => s.set);
   const { view } = useView();
   const [origin, setOrigin] = useState<Origin | null>(null);
+  // Each opening gets its own card instance, so a card still animating closed can't dismiss a fresh one.
+  const [openSeq, setOpenSeq] = useState(0);
+  const seqRef = useRef(0);
+  seqRef.current = openSeq;
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -45,6 +50,7 @@ export default function Home() {
   const onSelect = useCallback(
     (room: Room, el: Element) => {
       setOrigin(originOf(el));
+      setOpenSeq((n) => n + 1);
       set({ selected: room.id, panel: "none" });
     },
     [set],
@@ -92,7 +98,18 @@ export default function Home() {
             <Legend />
           </div>
         )}
-        {room && origin && <RoomCard key={room.id} room={room} origin={origin} onClose={() => (setOrigin(null), set({ selected: null }))} />}
+        {room && origin && (
+          <RoomCard
+            key={`${room.id}-${openSeq}`}
+            room={room}
+            origin={origin}
+            onClose={((seq) => () => {
+              if (seq !== seqRef.current) return;
+              setOrigin(null);
+              set({ selected: null });
+            })(openSeq)}
+          />
+        )}
         <PanelDrawer />
         <Toasts />
         <Assistant />
@@ -102,17 +119,18 @@ export default function Home() {
 }
 
 function Legend() {
+  const t = useT();
   const states: LiveState[] = ["free", "booked", "pending", "held", "ghost", "inuse", "squatter", "blackout"];
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-0 text-xs md:pl-44">
-      <span className="font-mono text-[10px] uppercase tracking-widest text-muted">Live state</span>
+      <span className="font-mono text-[10px] uppercase tracking-widest text-muted">{t("legend.title")}</span>
       {states.map((s) => (
         <span key={s} className="flex items-center gap-1.5">
           <i
             className="h-3 w-3 rounded-sm border border-black/20"
             style={{ background: s === "ghost" ? "repeating-linear-gradient(45deg,#fdecea 0 3px,#f19a92 3px 5px)" : STATE_META[s].fill }}
           />
-          {STATE_META[s].label}
+          {t(`state.${s}` as Key)}
         </span>
       ))}
       <span className="ml-auto flex items-center gap-1 text-muted" title="True north, approximate. Building sits ~8° off the grid.">

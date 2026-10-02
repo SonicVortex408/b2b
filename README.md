@@ -59,12 +59,33 @@ Without Supabase env vars the app runs entirely in the browser (demo mode). With
 
 `tests/db.test.ts` runs the real migration in PGlite (Postgres in WASM) and drives the server write path against it. It covers the exclusion constraint, 200 concurrent bookings, atomic bumps, role checks, and no-show with waitlist promotion.
 
+### Collaboration and ops features (round 3)
+
+| Feature | Where |
+| --- | --- |
+| **90 s soft-hold + live conflict preview** before submit: says whether you'd confirm, go pending, bump, negotiate or share, with score bars | Room card |
+| **Negotiation threads**: chat, holder accepts (shifts 1 h; requester booked atomically, +15 pts) or declines (alternatives), auto-escalates to admin | Conflict center |
+| **Swap marketplace**: list a slot; anyone claims it in one constraint-protected write | Swaps, My bookings |
+| **Approver counter-proposals**, accepted by the requester in one click | Approvals, Notifications |
+| **Multi-room bundles** (all-or-nothing) | Room card → "Bundle with" |
+| **"Room free now"** broadcast after release early; one-tap claim (+5) | Notifications |
+| **Notification center**: bumps with rebooking offers, approvals, counters, negotiations, swaps | 🔔 |
+| **Occupancy overlay**: simulator + `POST /api/occupancy` (optional `OCCUPANCY_TOKEN`); ghost and squatter states on the map | Admin |
+| **Rules editor** for exam blackouts | Admin |
+| **Real QR**: printable sheet `/admin/qr`, rotating signed door display `/display/F1-05`, scan-to-check-in `/checkin` | Admin |
+| **Role assignment**, **subscribable calendar feed** (Supabase mode) | Admin, My bookings |
+| Assistant: "why was my booking moved?" and "what will labs look like next week?" | Ask XIE Spaces |
+| Badges and points, Hindi/Marathi UI (`src/i18n`) | My bookings, header |
+| GitHub Actions CI: typecheck, unit + PGlite DB tests, build, Playwright demo script, solver tests | `.github/workflows/ci.yml` |
+
+All of these run through one action layer (`src/lib/actions.ts`): the browser in demo mode and `/api/engine` in Supabase mode use the same `authorize` + `runAction`. **Supabase users: run `npm run db:migrate` again** to apply `0002_collaboration.sql`. Re-running is safe.
+
 ### Deviations from the master prompt (flagged)
 
 The prompt asked me to check before deviating from the stack. These are the shortcuts I took to get a working demo in the time available:
 
 1. **Rules run in the Next.js server, not inside a Postgres RPC.** The engine runs in TypeScript on the server, and Postgres enforces atomicity and the no-overlap guarantee. Without Supabase env vars, everything runs in the browser instead (`localStorage`, with `BroadcastChannel` standing in for Realtime).
-2. **No shadcn/ui, TanStack Query, Inngest or Upstash yet.** Escalation SLAs are compressed to minutes for the demo. The forecast is a weekday-seasonal baseline with a trend term, not LightGBM/Prophet. The MCP server, Telegram bot and WhatsApp webhook each run their own seeded engine until Supabase is wired.
+2. **No shadcn/ui, TanStack Query, Inngest, Upstash, Sentry, PostHog or pgvector yet.** Soft-holds and timers live in engine state and are swept by the app's tick instead of Redis/Inngest. Vibe search matches tags, not embeddings. Escalation SLAs are compressed to minutes for the demo. The forecast is a weekday-seasonal baseline with a trend term, not LightGBM/Prophet. The MCP server, Telegram bot and WhatsApp webhook each run their own seeded engine until Supabase is wired.
 3. **Times are stored as date plus minutes in Asia/Kolkata**, not `timestamptz` (the SQL uses `timestamptz`).
 4. **Auth** is Supabase email/password with the four seeded `@xie.demo` accounts. In demo mode (no env vars), a role switcher stands in for it.
 

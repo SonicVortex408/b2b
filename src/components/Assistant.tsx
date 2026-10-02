@@ -7,6 +7,7 @@ import { KIND_LABEL } from "@/data/campus";
 import { PURPOSE_LABEL } from "@/lib/engine";
 import { searchAvailability, type BookingIntent, type Option } from "@/lib/intent";
 import { fmtDate, fmtTime } from "@/lib/time";
+import { useT } from "@/i18n";
 import { forecast } from "@/lib/forecast";
 import { myNotices, useStore } from "@/store/useStore";
 
@@ -29,6 +30,7 @@ export function Assistant() {
   const set = useStore((s) => s.set);
   const book = useStore((s) => s.book);
   const toast = useStore((s) => s.toast);
+  const t = useT();
 
   const toggle = () => {
     const el = boxRef.current!;
@@ -91,7 +93,7 @@ export function Assistant() {
     <div ref={boxRef} className={`surface absolute bottom-3 left-3 z-30 overflow-hidden border shadow-2xl ${open ? "w-[min(420px,calc(100%-24px))] rounded-2xl" : "rounded-full"}`}>
       {!open ? (
         <button onClick={toggle} className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold">
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-xs text-white">✦</span> Ask XIE Spaces
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-xs text-white">✦</span> {t("assistant.open")}
         </button>
       ) : (
         <div className="flex max-h-[70vh] flex-col">

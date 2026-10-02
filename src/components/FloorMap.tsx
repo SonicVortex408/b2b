@@ -118,8 +118,8 @@ export function FloorMap({ onSelect, selected, mini }: Props) {
 
       {/* courtyard void (bottom edge open) */}
       <g
-        className={`room ${!mini && !matches(COURT_TURF) ? "dimmed" : ""}`}
-        data-room-id={COURT_TURF.id}
+        className={`${mini ? "room-mini" : "room"} ${!mini && !matches(COURT_TURF) ? "dimmed" : ""}`}
+        data-room-id={mini ? undefined : COURT_TURF.id}
         role={mini ? undefined : "button"}
         tabIndex={mini ? -1 : 0}
         aria-label={`Courtyard turf, ${STATE_META[court?.state ?? "free"].label}`}
@@ -127,8 +127,8 @@ export function FloorMap({ onSelect, selected, mini }: Props) {
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), activate(COURT_TURF, e))}
       >
         <path
-          className="room-shape"
-          data-room-id={COURT_TURF.id}
+          className={mini ? undefined : "room-shape"}
+          data-room-id={mini ? undefined : COURT_TURF.id}
           d={`M${C.x} ${C.y + C.h + 8}V${C.y}H${C.x + C.w}V${C.y + C.h + 8}Z`}
           fill={mini ? "#eef3e9" : colorMode === "state" && court && court.state !== "free" ? STATE_META[court.state].fill : "#eef3e9"}
           stroke="#1f2933"
@@ -173,8 +173,8 @@ export function FloorMap({ onSelect, selected, mini }: Props) {
         return (
           <g
             key={room.id}
-            className={`room ${!room.bookable ? "pointer-events-none" : ""} ${!mini && !matches(room) ? "dimmed" : ""}`}
-            data-room-id={room.id}
+            className={`${mini ? "room-mini" : "room"} ${!room.bookable ? "pointer-events-none" : ""} ${!mini && !matches(room) ? "dimmed" : ""}`}
+            data-room-id={mini ? undefined : room.id}
             role={room.bookable && !mini ? "button" : undefined}
             tabIndex={room.bookable && !mini ? 0 : -1}
             aria-label={room.bookable ? `${room.name}, ${room.capacity} seats, ${STATE_META[st?.state ?? "free"].label}` : room.name}
@@ -183,8 +183,8 @@ export function FloorMap({ onSelect, selected, mini }: Props) {
             onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), activate(room, e))}
           >
             <path
-              className="room-shape"
-              data-room-id={room.id}
+              className={mini ? undefined : "room-shape"}
+              data-room-id={mini ? undefined : room.id}
               d={pathOf(room.rect)}
               fill={fill}
               stroke={isSel ? "#1d4ed8" : "#1f2933"}
