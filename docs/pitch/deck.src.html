@@ -1,0 +1,873 @@
+<title>XIE Spaces Pitch Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Heebo:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one full-viewport stage, slides stacked in 3D space; content sits on a 12-col grid inside a 1200px frame. */
+:root {
+  --bg: #f4f8f9;          /* template's pale sky */
+  --ink: #24444f;         /* template slate */
+  --ink-soft: #5b7480;
+  --blue: #176fc1;        /* template blue */
+  --teal: #0e8fa8;        /* template teal */
+  --glow: #24e0d0;        /* cyan path glow from the campus renders */
+  --glass: rgba(255,255,255,.62);
+  --glass-edge: rgba(36,68,79,.12);
+  --free: #16a34a; --busy: #dc2626; --pend: #d97706; --use: #2563eb; --ghost: #f19a92; --held: #ca8a04; --squat: #7c3aed;
+  --f-display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Heebo", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-weight: 300; overflow: hidden; }
+* { box-sizing: border-box; }
+
+.stage { position: fixed; inset: 0; perspective: 1800px; perspective-origin: 50% 40%; overflow: hidden;
+  background: radial-gradient(1200px 700px at 85% -10%, rgba(36,224,208,.16), transparent 60%), radial-gradient(900px 600px at -10% 110%, rgba(23,111,193,.12), transparent 60%), var(--bg); }
+.paths { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .55; }
+.paths path { fill: none; stroke: var(--glow); stroke-width: 1.4; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(36,224,208,.6)); }
+
+.slide { position: absolute; inset: 0; padding: calc(56px + env(safe-area-inset-top, 0px)) clamp(16px, 5vw, 72px) calc(84px + env(safe-area-inset-bottom, 0px));
+  display: grid; align-items: center; overflow-y: auto; overflow-x: hidden; visibility: hidden; transform-style: preserve-3d; }
+.slide.is-active { visibility: visible; }
+.frame { width: 100%; max-width: 1200px; margin-inline: auto; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: clamp(16px, 2.4vw, 32px); align-items: center; }
+
+.kicker { font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--teal); display: flex; align-items: center; gap: 10px; }
+.kicker::before { content: ""; width: 28px; height: 2px; background: linear-gradient(90deg, var(--glow), var(--blue)); border-radius: 2px; }
+h1, h2, h3 { font-family: var(--f-display); color: var(--ink); text-wrap: balance; margin: 0; }
+h1 { font-weight: 800; font-size: clamp(44px, 7.4vw, 104px); letter-spacing: -.035em; line-height: .95; }
+h2 { font-weight: 700; font-size: clamp(28px, 3.8vw, 52px); letter-spacing: -.025em; line-height: 1.05; }
+h3 { font-weight: 600; font-size: clamp(16px, 1.4vw, 19px); letter-spacing: -.01em; }
+p { margin: 0; line-height: 1.6; }
+.lede { font-size: clamp(16px, 1.45vw, 20px); color: var(--ink-soft); max-width: 58ch; }
+.small { font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
+.mono { font-family: var(--f-mono); font-size: 12.5px; }
+.stack { display: grid; gap: 18px; align-content: start; min-width: 0; }
+.span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-7 { grid-column: span 7; } .span-6 { grid-column: span 6; } .span-5 { grid-column: span 5; } .span-4 { grid-column: span 4; }
+@media (max-width: 860px) { .span-8, .span-7, .span-6, .span-5, .span-4 { grid-column: span 12; } }
+
+.glass { background: linear-gradient(140deg, rgba(255,255,255,.78), rgba(205,226,233,.55)); border: 1px solid var(--glass-edge); border-radius: 18px;
+  box-shadow: 0 24px 60px -32px rgba(36,68,79,.45), inset 0 1px 0 rgba(255,255,255,.8); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.tilt { transform-style: preserve-3d; will-change: transform; }
+.grid-cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.card { padding: 20px 20px 22px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card .ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(36,224,208,.22), rgba(23,111,193,.18)); color: var(--blue); }
+.card .ic svg { width: 20px; height: 20px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: rgba(255,255,255,.75); border: 1px solid var(--glass-edge); white-space: nowrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.num { font-family: var(--f-display); font-weight: 800; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+code, pre { font-family: var(--f-mono); }
+pre.sql { margin: 0; padding: 18px 20px; font-size: 13px; line-height: 1.65; color: #d9f3f6; background: #183039; border-radius: 16px; overflow-x: auto; box-shadow: 0 30px 70px -40px rgba(24,48,57,.9); }
+pre.sql .k { color: #7fe7ff; } pre.sql .s { color: #ffd38a; } pre.sql .c { color: #7f9aa3; }
+
+/* ---------- chrome ---------- */
+.topbar { position: fixed; left: 0; right: 0; top: 0; padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(16px, 5vw, 72px) 0; display: flex; align-items: center; justify-content: space-between; z-index: 5; pointer-events: none; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+.brand b { color: var(--teal); }
+.counter { font-family: var(--f-mono); font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.navbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 22px clamp(16px, 5vw, 72px) calc(16px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(rgba(244,248,249,0), var(--bg) 45%); display: flex; align-items: center; gap: 14px; z-index: 5; }
+.navbar button { appearance: none; border: 1px solid var(--glass-edge); background: rgba(255,255,255,.8); color: var(--ink); width: 40px; height: 40px; border-radius: 12px; font-size: 18px; cursor: pointer; display: grid; place-items: center; transition: transform .2s, background .2s; flex: none; }
+.navbar button:hover { transform: translateY(-2px); background: #fff; }
+.navbar button:focus-visible, .dots button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.dots { display: flex; gap: 6px; flex: 1; justify-content: center; flex-wrap: wrap; }
+.dots button { width: 8px; height: 8px; padding: 0; border-radius: 99px; border: 0; background: rgba(36,68,79,.22); cursor: pointer; transition: width .35s, background .35s; }
+.dots button[aria-current="true"] { width: 26px; background: linear-gradient(90deg, var(--glow), var(--blue)); }
+.progress { position: fixed; left: 0; top: 0; height: 3px; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--glow), var(--blue)); z-index: 6; }
+.hint { font-family: var(--f-mono); font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+@media (max-width: 600px) { .hint { display: none; } .dots { flex-wrap: nowrap; gap: 4px; } .dots button { width: 6px; height: 6px; } .dots button[aria-current="true"] { width: 16px; } .slide { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); } }
+
+/* ---------- 1 hero ---------- */
+.hero-photo { position: absolute; inset: 0; background: url("assets/campus-hero.jpg") center 40% / cover no-repeat; opacity: .9; }
+.hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(244,248,249,.97) 0%, rgba(244,248,249,.9) 40%, rgba(244,248,249,.25) 75%, rgba(244,248,249,.05) 100%), linear-gradient(0deg, rgba(244,248,249,.9), transparent 35%); }
+.hero h1 span { background: linear-gradient(90deg, var(--blue), var(--teal) 55%, #19b8b0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tower { position: relative; height: clamp(260px, 40vw, 460px); perspective: 1400px; }
+.tower .plates { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(58deg) rotateZ(-34deg); }
+.plate { position: absolute; left: 6%; top: 18%; width: 88%; aspect-ratio: 1310 / 790; border-radius: 10px; background: rgba(255,255,255,.88); box-shadow: 0 40px 50px -30px rgba(36,68,79,.55); transform-style: preserve-3d; }
+.plate svg { width: 100%; height: 100%; display: block; border-radius: 10px; }
+.plate .tag { position: absolute; left: -2px; top: -26px; font-family: var(--f-mono); font-size: 11px; color: var(--ink); background: #fff; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--glass-edge); }
+
+/* ---------- live map ---------- */
+.mapbox { padding: 16px; }
+.mapbox svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: var(--ink-soft); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.scrub { height: 6px; border-radius: 6px; background: rgba(36,68,79,.12); position: relative; overflow: visible; }
+.scrub i { position: absolute; left: 0; top: 0; bottom: 0; width: 40%; border-radius: 6px; background: linear-gradient(90deg, var(--glow), var(--blue)); }
+.scrub b { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 3px solid var(--blue); transform: translate(-50%, -50%); left: 40%; }
+
+/* ---------- workflow / morph ---------- */
+.steps { display: grid; gap: 12px; counter-reset: s; }
+.step { display: grid; grid-template-columns: 44px 1fr; gap: 14px; padding: 14px 16px; align-items: start; }
+.step .n { font-family: var(--f-display); font-weight: 800; font-size: 22px; color: var(--teal); letter-spacing: -.03em; }
+.morph-wrap { position: relative; padding: 14px; min-height: 380px; }
+.morph-card { position: absolute; right: 14px; top: 14px; width: min(300px, 62%); border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 30px 60px -30px rgba(36,68,79,.6); border: 1px solid var(--glass-edge); }
+.morph-card header { background: var(--blue); color: #fff; padding: 12px 14px; font-family: var(--f-display); font-weight: 700; font-size: 15px; }
+.morph-card header small { display: block; font-family: var(--f-body); font-weight: 400; font-size: 11.5px; opacity: .85; }
+.morph-card .body { padding: 12px 14px; display: grid; gap: 8px; font-size: 12.5px; }
+.btn-book { background: var(--free); color: #fff; border-radius: 8px; padding: 8px; text-align: center; font-weight: 600; font-size: 13px; }
+.held { display: flex; justify-content: space-between; align-items: center; border: 2px solid rgba(23,111,193,.35); background: rgba(23,111,193,.06); border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+.held .t { font-family: var(--f-mono); color: var(--pend); background: rgba(217,119,6,.12); padding: 1px 6px; border-radius: 5px; }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.slots span { border: 1px solid rgba(22,163,74,.5); color: var(--free); text-align: center; border-radius: 7px; padding: 4px 0; font-size: 11.5px; font-weight: 500; }
+
+/* ---------- particles / counters ---------- */
+.canvas-box { position: relative; padding: 0; overflow: hidden; min-height: 320px; }
+.canvas-box canvas { width: 100%; height: 100%; display: block; position: absolute; inset: 0; }
+.canvas-box .overlay { position: absolute; left: 18px; bottom: 16px; right: 18px; display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.big { font-size: clamp(40px, 5vw, 68px); line-height: 1; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.tile { padding: 18px; display: grid; gap: 4px; }
+.tile .num { font-size: clamp(34px, 3.6vw, 52px); line-height: 1; color: var(--ink); }
+.tile .lbl { font-size: 13px; color: var(--ink-soft); }
+.tile.good { background: linear-gradient(140deg, rgba(22,163,74,.12), rgba(255,255,255,.7)); border-color: rgba(22,163,74,.35); }
+.tile.good .num { color: var(--free); }
+
+/* ---------- scoring ---------- */
+.formula { font-family: var(--f-mono); font-size: clamp(12.5px, 1.2vw, 15px); padding: 14px 16px; line-height: 1.7; overflow-x: auto; }
+.formula b { color: var(--blue); font-weight: 500; }
+.bars { display: grid; gap: 10px; padding: 18px; }
+.bar-row { display: grid; grid-template-columns: 92px 1fr 40px; gap: 10px; align-items: center; font-size: 13px; }
+.bar-track { height: 10px; border-radius: 10px; background: rgba(36,68,79,.08); position: relative; overflow: hidden; }
+.bar-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 10px; }
+.bar-row .v { font-family: var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.outcome { padding: 12px 14px; font-size: 13px; }
+.outcome strong { display: block; font-family: var(--f-display); font-size: 14px; margin-bottom: 2px; }
+
+/* ---------- chat ---------- */
+.chat { padding: 16px; display: grid; gap: 10px; align-content: start; min-height: 300px; }
+.msg { max-width: 82%; padding: 9px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; }
+.msg small { display: block; font-size: 11px; opacity: .7; margin-bottom: 2px; }
+.msg.them { background: rgba(36,68,79,.07); justify-self: start; border-bottom-left-radius: 4px; }
+.msg.me { background: var(--blue); color: #fff; justify-self: end; border-bottom-right-radius: 4px; }
+.msg.sys { justify-self: center; background: rgba(22,163,74,.12); color: #146c35; font-size: 12.5px; border-radius: 99px; padding: 6px 12px; }
+
+/* ---------- approvals ---------- */
+.flow { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.flow .node { flex: 1 1 150px; padding: 14px; font-size: 13px; position: relative; }
+.flow .node strong { display: block; font-family: var(--f-display); font-size: 14px; }
+.ring { width: 76px; height: 76px; }
+.ring circle { fill: none; stroke-width: 7; }
+table.roles { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.roles th, table.roles td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--glass-edge); }
+table.roles th { font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+.tbl-wrap { overflow-x: auto; padding: 6px 10px; }
+.y { color: var(--free); font-weight: 500; } .r { color: var(--pend); font-weight: 500; } .x { color: #9aa9b0; }
+
+/* ---------- QR ---------- */
+.door { padding: 18px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; background: linear-gradient(140deg, #1d3a44, #24444f); color: #fff; border-radius: 18px; box-shadow: 0 30px 70px -35px rgba(24,48,57,.9); }
+.door h3 { color: #fff; font-size: 22px; }
+.door .state { display: inline-block; margin-top: 8px; padding: 5px 12px; border-radius: 99px; background: var(--use); font-weight: 600; font-size: 13px; }
+.qr { width: 132px; height: 132px; background: #fff; border-radius: 12px; padding: 8px; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.qr-meta { font-family: var(--f-mono); font-size: 11px; opacity: .75; text-align: center; margin-top: 6px; }
+
+/* ---------- AI ---------- */
+.prompt { padding: 14px 16px; font-size: 15px; display: flex; gap: 10px; align-items: center; }
+.prompt .caret { width: 2px; height: 18px; background: var(--blue); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+pre.json { margin: 0; padding: 14px 16px; font-size: 12.5px; line-height: 1.6; background: rgba(24,48,57,.92); color: #d9f3f6; border-radius: 14px; overflow-x: auto; min-height: 140px; }
+.opt { padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; font-size: 13px; }
+.opt strong { font-family: var(--f-display); font-size: 14.5px; }
+.opt .fit { font-family: var(--f-mono); font-size: 11.5px; color: var(--teal); }
+
+/* ---------- architecture ---------- */
+.layers { position: relative; display: grid; gap: 10px; transform-style: preserve-3d; }
+.layer { padding: 14px 18px; display: grid; grid-template-columns: minmax(130px, 200px) 1fr; gap: 14px; align-items: center; }
+.layer .lbl { font-family: var(--f-display); font-weight: 700; font-size: 14px; }
+.layer .lbl small { display: block; font-family: var(--f-mono); font-weight: 400; font-size: 10.5px; letter-spacing: .12em; color: var(--teal); text-transform: uppercase; }
+.layer .what { font-size: 13.5px; color: var(--ink-soft); }
+.layer.core { background: linear-gradient(140deg, rgba(23,111,193,.14), rgba(255,255,255,.75)); border-color: rgba(23,111,193,.35); }
+@media (max-width: 600px) { .layer { grid-template-columns: 1fr; } }
+
+/* ---------- demo ---------- */
+.photo { border-radius: 22px; overflow: hidden; min-height: 320px; background-size: cover; background-position: center; box-shadow: 0 40px 80px -40px rgba(36,68,79,.7); }
+.trail { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.trail .pill { font-size: 14px; padding: 8px 14px; }
+.trail .arr { color: var(--teal); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) { .prompt .caret { animation: none; } }
+</style>
+
+<div class="progress" id="progress"></div>
+<div class="topbar"><div class="brand"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="#24444f"/><path d="M8 9h16v4H13v10H8z" fill="#bfe9f0"/><rect x="15" y="15" width="9" height="8" fill="#24e0d0"/></svg>XIE <b>Spaces</b></div><div class="counter" id="counter">01 / 18</div></div>
+
+<main class="stage" id="stage" aria-roledescription="presentation">
+<svg class="paths" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true"><path id="path1" d="M-40 760 C 300 640, 420 820, 760 690 S 1180 420, 1660 520"/><path id="path2" d="M-40 180 C 280 260, 520 80, 860 170 S 1300 330, 1660 220" style="stroke: #176fc1; opacity:.6"/></svg>
+
+<!-- 1 -->
+<section class="slide hero is-active" data-id="hero" aria-label="XIE Spaces">
+  <div class="hero-photo" data-depth="-12"></div>
+  <div class="frame" style="position:relative">
+    <div class="stack span-6">
+      <div class="kicker" data-a>Campus resource booking &amp; conflict resolution</div>
+      <h1 data-a>XIE <span>Spaces</span></h1>
+      <p class="lede" data-a>One booking system for every classroom, lab and hall at Xavier Institute of Engineering. Live availability, a real approval workflow, and double bookings made impossible.</p>
+      <div class="chips" data-a><span class="pill"><i class="dot" style="background:var(--free)"></i>37 rooms · 3 floors</span><span class="pill"><i class="dot" style="background:var(--blue)"></i>1,513 seats</span><span class="pill"><i class="dot" style="background:var(--busy)"></i>0 double bookings</span></div>
+    </div>
+    <div class="span-6 tower" data-a aria-label="The three floors of XIE as an exploded 3D stack" role="img"><div class="plates" id="heroPlates"></div></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide" data-id="problem" aria-label="The problem">
+  <div class="frame">
+    <div class="stack span-12">
+      <div class="kicker" data-a>The problem</div>
+      <h2 data-a>Campus space is harder to use than it should be</h2>
+      <p class="lede" data-a>Rooms exist; finding, booking and trusting them is the hard part.</p>
+    </div>
+    <div class="span-12 grid-cards">
+      <div class="glass card tilt" data-a><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div><h3>Finding is fragmented</h3><p class="small">Nobody can see which of 37 classrooms, labs and halls is free right now. Answers live in group chats and HOD cabins.</p></div>
+      <div class="glass card tilt" data-a><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg></div><h3>Booking is manual</h3><p class="small">Requests wait in inboxes with no deadline, and there is no record of who asked first or why a request was refused.</p></div>
+      <div class="glass card tilt" data-a><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg></div><h3>Clashes surface at the door</h3><p class="small">Two groups booked for one room only find out when both arrive. Exams collide with club events.</p></div>
+      <div class="glass card tilt" data-a><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5h8v2"/></svg></div><h3>Capacity stays hidden</h3><p class="small">Rooms booked by people who never show up stay locked all afternoon while demand piles up elsewhere.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide" data-id="platform" aria-label="The platform">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>The platform</div>
+      <h2 data-a>One platform for every campus space</h2>
+      <p class="lede" data-a>See every room live, book it in two clicks, and let one engine settle every clash with a reason you can read.</p>
+      <div class="chips" data-a><span class="pill">Students</span><span class="pill">Faculty</span><span class="pill">Approvers</span><span class="pill">Admins</span></div>
+    </div>
+    <div class="span-7" data-a><svg id="orbit" viewBox="0 0 640 460" style="width:100%;height:auto;display:block" role="img" aria-label="XIE Spaces at the centre of six capabilities"></svg></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide" data-id="campus" aria-label="The campus model">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>The campus, hardcoded</div>
+      <h2 data-a>Every room from the real XIE floor plans</h2>
+      <p class="lede" data-a>A C-shaped building around an open turf courtyard. North faces S.L. Raheja Marg, east faces Mahim–Sion Link Road.</p>
+      <div class="tiles" data-a>
+        <div class="glass tile"><span class="num" data-count="22">22</span><span class="lbl">labs · 25–75 seats</span></div>
+        <div class="glass tile"><span class="num" data-count="9">9</span><span class="lbl">lecture halls · 75</span></div>
+        <div class="glass tile"><span class="num" data-count="6">6</span><span class="lbl">tutorial, seminar, library, conference</span></div>
+      </div>
+      <p class="small" data-a>Capacities the brief marked "assumed" carry an <em>unverified</em> chip until an admin confirms them.</p>
+    </div>
+    <div class="span-7 tower" data-a style="height:clamp(300px,42vw,520px)" role="img" aria-label="Floors 1 to 3 separating into an exploded view"><div class="plates" id="campusPlates"></div></div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide" data-id="live" aria-label="Real-time availability">
+  <div class="frame">
+    <div class="stack span-4">
+      <div class="kicker" data-a>Real-time availability</div>
+      <h2 data-a>The map is the source of truth</h2>
+      <p class="lede" data-a>Every room shows its state for any hour of any day. A change anywhere pulses on every open screen within a second.</p>
+      <div class="legend" data-a>
+        <span><i class="dot" style="background:var(--free)"></i>Available</span><span><i class="dot" style="background:var(--busy)"></i>Booked</span><span><i class="dot" style="background:var(--pend)"></i>Pending</span><span><i class="dot" style="background:var(--use)"></i>Checked in</span><span><i class="dot" style="background:var(--ghost)"></i>Ghost</span><span><i class="dot" style="background:var(--squat)"></i>Squatter</span><span><i class="dot" style="background:var(--held)"></i>Soft-held</span>
+      </div>
+      <div data-a style="display:grid;gap:8px"><div class="scrub"><i id="scrubFill"></i><b id="scrubKnob"></b></div><div class="mono" style="display:flex;justify-content:space-between;color:var(--ink-soft)"><span>08:00</span><span id="scrubTime">12:30</span><span>20:00</span></div></div>
+    </div>
+    <div class="span-8 glass mapbox tilt" data-a><svg id="liveMap" viewBox="-10 -10 1330 810" role="img" aria-label="First floor live map with rooms changing state"></svg></div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-id="flow" aria-label="Booking flow">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>The workflow</div>
+      <h2 data-a>From map to booking in two clicks</h2>
+      <div class="steps">
+        <div class="glass step" data-a><span class="n">01</span><div><h3>Choose a floor</h3><p class="small">Map, grid, swipe or just ask the assistant.</p></div></div>
+        <div class="glass step" data-a><span class="n">02</span><div><h3>Open the room</h3><p class="small">The room shape morphs into its card: state, timeline, equipment, next free slots.</p></div></div>
+        <div class="glass step" data-a><span class="n">03</span><div><h3>Pick a time</h3><p class="small">A 90-second soft-hold and a live preview of the outcome before anything is written.</p></div></div>
+        <div class="glass step" data-a><span class="n">04</span><div><h3>Confirm, live everywhere</h3><p class="small">The server re-checks every rule, writes once, and every open map updates.</p></div></div>
+      </div>
+    </div>
+    <div class="span-7 glass morph-wrap" data-a>
+      <svg id="morphMap" viewBox="-10 -10 1330 810" style="width:100%;height:auto;display:block" aria-hidden="true"></svg>
+      <div class="morph-card" id="morphCard" aria-label="Room card example">
+        <header>Library<small>F1-13 · Floor 1 · 50 seats</small></header>
+        <div class="body">
+          <div style="text-align:center;font-size:13px"><b>This space is available!</b></div>
+          <div class="held"><span>Library · 2:30–3:30 PM</span><span class="t" id="holdT">held 90s</span></div>
+          <div style="color:var(--free);font-size:12px">Free. Confirms instantly.</div>
+          <div class="btn-book">Confirm booking</div>
+          <div class="slots"><span>3:30 PM</span><span>5:00 PM</span><span>6:00 PM</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-id="guarantee" aria-label="Double bookings are impossible">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>The guarantee</div>
+      <h2 data-a>A double booking cannot be written</h2>
+      <p class="lede" data-a>Postgres itself refuses overlapping holds. App logic is never the only defence, and pending requests hold the slot too.</p>
+      <pre class="sql" data-a><span class="k">constraint</span> bookings_no_overlap
+  <span class="k">exclude using gist</span> (
+    resource_id <span class="k">with</span> =,
+    tstzrange(starts_at, ends_at) <span class="k">with</span> &amp;&amp;
+  ) <span class="k">where</span> (status <span class="k">in</span> (
+    <span class="s">'confirmed'</span>, <span class="s">'pending_approval'</span>, <span class="s">'checked_in'</span>))</pre>
+      <p class="small" data-a>Every write goes through one transaction, <code>apply_engine_changes()</code>. A lost race raises <code>23P01</code>; the server reloads and lets the engine decide again.</p>
+    </div>
+    <div class="span-7 glass canvas-box" data-a style="min-height:420px">
+      <canvas id="particles" aria-label="200 requests converge on one slot; one wins" role="img"></canvas>
+      <div class="overlay"><div><div class="mono" style="color:var(--ink-soft)">PARALLEL REQUESTS · ONE ROOM · ONE SLOT</div><div class="num big"><span id="pCount">200</span> → <span style="color:var(--free)">1</span></div></div><span class="pill"><i class="dot" style="background:var(--free)"></i><span id="pDouble">0 double bookings</span></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-id="engine" aria-label="Conflict engine">
+  <div class="frame">
+    <div class="stack span-6">
+      <div class="kicker" data-a>Conflict engine</div>
+      <h2 data-a>When two requests collide, the engine explains who wins</h2>
+      <div class="glass formula" data-a>score = <b>0.40</b>·purpose + <b>0.20</b>·role + <b>0.15</b>·urgency + <b>0.15</b>·fairness + <b>0.10</b>·usage</div>
+      <p class="small" data-a>Purpose: exam 100 › academic class 80 › faculty event 60 › club event 40 › casual 20. A user or club bumped 3+ times earns a fairness boost.</p>
+      <div class="outcomes" data-a>
+        <div class="glass outcome"><strong>Bump</strong>lead of 15+, holder gets 3 offers</div>
+        <div class="glass outcome"><strong>Negotiate</strong>scores within 15</div>
+        <div class="glass outcome"><strong>Share</strong>both groups fit</div>
+        <div class="glass outcome"><strong>Alternatives</strong>least-disruption top 3</div>
+      </div>
+    </div>
+    <div class="span-6 stack">
+      <div class="glass bars tilt" data-a id="bars">
+        <div class="mono" style="display:flex;justify-content:space-between;color:var(--ink-soft)"><span><i class="dot" style="background:var(--blue)"></i> Exam: DBMS End-Sem</span><span><i class="dot" style="background:var(--pend)"></i> GDSC XIE workshop</span></div>
+      </div>
+      <div class="glass" data-a style="padding:16px 18px;font-size:14px;line-height:1.55">“GDSC XIE’s Lecture Hall 2 booking was moved because <b>Exam: DBMS End-Sem (priority 96)</b> needed the room. 3 rebooking offers sent; +8 fairness boost for next time.”<div class="mono" style="margin-top:8px;color:var(--ink-soft)">decision log · plain English, facts from the scores</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-id="collab" aria-label="Negotiation, swaps and counter-proposals">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>Beyond yes and no</div>
+      <h2 data-a>Close calls become conversations</h2>
+      <div class="grid-cards" style="grid-template-columns:1fr 1fr">
+        <div class="glass card" data-a><h3>Negotiation</h3><p class="small">Scores within 15 open a thread. If the holder shifts, both are booked in one transaction (+15 points).</p></div>
+        <div class="glass card" data-a><h3>Swap market</h3><p class="small">List a slot instead of cancelling. Anyone eligible claims it atomically.</p></div>
+        <div class="glass card" data-a><h3>Counter-offer</h3><p class="small">Approvers propose another room or time; one click accepts.</p></div>
+        <div class="glass card" data-a><h3>Waitlist</h3><p class="small">Auto-promoted the moment a slot frees up.</p></div>
+      </div>
+    </div>
+    <div class="span-7 glass chat" data-a id="chat" aria-live="off">
+      <div class="mono" style="color:var(--ink-soft)">NEGOTIATION · CONFERENCE ROOM · 2:30–3:30 PM · 75 vs 73</div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-id="approvals" aria-label="Approval workflow and roles">
+  <div class="frame">
+    <div class="stack span-12">
+      <div class="kicker" data-a>Approval workflow</div>
+      <h2 data-a>Most bookings confirm instantly; the risky ones get a deadline</h2>
+    </div>
+    <div class="span-12 flow">
+      <div class="glass node" data-a><strong>Request</strong>Student asks for the Network Lab</div>
+      <div class="glass node" data-a><strong>Pool</strong>Routed to the Computer HOD; slot soft-held</div>
+      <div class="glass node" data-a style="display:flex;gap:12px;align-items:center"><svg class="ring" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="32" stroke="rgba(36,68,79,.12)"/><circle id="slaRing" cx="40" cy="40" r="32" stroke="#d97706" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="0" transform="rotate(-90 40 40)"/></svg><div><strong>SLA 4 h</strong><span id="slaText">1 h for exams</span></div></div>
+      <div class="glass node" data-a><strong>Escalate</strong>Unanswered → secondary approver, both notified</div>
+      <div class="glass node" data-a style="border-color:rgba(22,163,74,.4)"><strong>Decide</strong>Approve · reject with reason · counter-propose</div>
+    </div>
+    <div class="span-12 glass tbl-wrap" data-a>
+      <table class="roles">
+        <thead><tr><th>Capability</th><th>Student</th><th>Faculty</th><th>Approver</th><th>Admin</th></tr></thead>
+        <tbody>
+          <tr><td>Library, tutorial rooms, conference room</td><td class="y">instant</td><td class="y">instant</td><td class="y">instant</td><td class="y">instant</td></tr>
+          <tr><td>Labs, lecture halls, Seminar Hall</td><td class="r">request</td><td class="y">instant for classes and exams</td><td class="y">instant</td><td class="y">instant</td></tr>
+          <tr><td>Advance window</td><td>3 days</td><td>21 days</td><td>21 days</td><td>unlimited</td></tr>
+          <tr><td>Approve, reject, counter-propose, blackout rules</td><td class="x">no</td><td class="x">no</td><td class="y">yes</td><td class="y">yes</td></tr>
+          <tr><td>Roles, Simulate Chaos, data reset</td><td class="x">no</td><td class="x">no</td><td class="x">no</td><td class="y">yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-id="ghosts" aria-label="Ghost bookings and QR check-in">
+  <div class="frame">
+    <div class="stack span-6">
+      <div class="kicker" data-a>Ghost bookings</div>
+      <h2 data-a>Booked but empty? Released in 10 minutes</h2>
+      <p class="lede" data-a>Each door shows a signed QR that changes every 60 seconds. No scan within 10 minutes of start, and the room goes back to the campus.</p>
+      <div class="steps">
+        <div class="glass step" data-a><span class="n">✓</span><div><h3>Scan to check in</h3><p class="small">HS256 token, per-room secret, 60 s lifetime. Expired, wrong-room or tampered codes are refused.</p></div></div>
+        <div class="glass step" data-a><span class="n">↺</span><div><h3>No-show releases the slot</h3><p class="small">The waitlist is promoted and reliability points drop by 10.</p></div></div>
+        <div class="glass step" data-a><span class="n">◎</span><div><h3>Leave early, hand it on</h3><p class="small">“Room free now” goes to everyone; first tap claims it (+5).</p></div></div>
+      </div>
+    </div>
+    <div class="span-6 stack">
+      <div class="door tilt" data-a>
+        <div><div class="mono" style="opacity:.6">F1-05 · LEVEL 1</div><h3>Network Lab</h3><span class="state" id="doorState">Checked in · until 4:00 PM</span><p style="margin-top:12px;font-size:13px;opacity:.75">Scan to check in. Unchecked bookings release 10 minutes after start.</p></div>
+        <div><div class="qr"><svg id="qr" viewBox="0 0 25 25" shape-rendering="crispEdges" aria-label="Rotating check-in code"></svg></div><div class="qr-meta" id="qrMeta">rotates in 60s</div></div>
+      </div>
+      <div class="glass" data-a style="padding:14px 16px;font-size:13.5px">Wi-Fi or motion density per room separates <b>booked and busy</b>, <b style="color:var(--busy)">booked but empty</b> and <b style="color:var(--squat)">free but occupied</b>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-id="ai" aria-label="AI booking assistant">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>AI booking assistant</div>
+      <h2 data-a>Say what you need; the rules still decide</h2>
+      <p class="lede" data-a>Claude turns a sentence into a validated intent. It never writes to the database: the intent goes through the same engine as a manual booking.</p>
+      <div class="chips" data-a><span class="pill">Text and voice</span><span class="pill">Telegram</span><span class="pill">WhatsApp</span><span class="pill">MCP for AI agents</span><span class="pill">“Why was my booking moved?”</span><span class="pill">“How busy are labs next week?”</span></div>
+    </div>
+    <div class="span-7 stack">
+      <div class="glass prompt" data-a><span style="color:var(--teal);font-weight:700">✦</span><span id="typed"></span><span class="caret"></span></div>
+      <pre class="json" data-a id="intent"></pre>
+      <div id="opts" class="stack" style="gap:8px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="slide" data-id="chaos" aria-label="Simulate Chaos">
+  <div class="frame">
+    <div class="stack span-5">
+      <div class="kicker" data-a>Digital twin</div>
+      <h2 data-a>Simulate Chaos: 50 conflicting requests, live</h2>
+      <p class="lede" data-a>Mixed roles, overlapping slots, room bundles, over-capacity groups and an exam blackout stream in at five per second. The map lights up while every decision is logged.</p>
+      <svg id="chaosMap" viewBox="-10 -10 1330 810" style="width:100%;height:auto" data-a aria-hidden="true"></svg>
+    </div>
+    <div class="span-7 stack">
+      <div class="tiles" id="chaosTiles">
+        <div class="glass tile" data-a><span class="num" data-to="50">0</span><span class="lbl">requests</span></div>
+        <div class="glass tile" data-a><span class="num" data-to="32">0</span><span class="lbl">conflicts detected</span></div>
+        <div class="glass tile" data-a><span class="num" data-to="6">0</span><span class="lbl">bumped with offers</span></div>
+        <div class="glass tile" data-a><span class="num" data-to="17">0</span><span class="lbl">negotiated</span></div>
+        <div class="glass tile" data-a><span class="num" data-to="21">0</span><span class="lbl">blocked by rules or held</span></div>
+        <div class="glass tile good" data-a><span class="num">0</span><span class="lbl">double bookings</span></div>
+      </div>
+      <p class="small" data-a>Figures from one recorded run of the demo. The count of double bookings is checked by scanning every pair of holding bookings.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14 -->
+<section class="slide" data-id="build" aria-label="Architecture">
+  <div class="frame">
+    <div class="stack span-4">
+      <div class="kicker" data-a>The build</div>
+      <h2 data-a>A connected architecture keeps the experience simple</h2>
+      <p class="lede" data-a>Every channel reaches one server path and one database guarantee.</p>
+    </div>
+    <div class="span-8 layers" id="layers">
+      <div class="glass layer" data-a><div class="lbl"><small>Users &amp; roles</small>4 roles</div><div class="what">Student · Faculty · Approver · Admin, enforced from the profile on every write</div></div>
+      <div class="glass layer" data-a><div class="lbl"><small>Application</small>Next.js 15</div><div class="what">React 19, TypeScript, Tailwind v4, Zustand, GSAP (Flip, MorphSVG, ScrollTrigger), PWA</div></div>
+      <div class="glass layer" data-a><div class="lbl"><small>Services</small>One action layer</div><div class="what">Booking engine, Claude tool-use assistant, MCP server, Telegram and WhatsApp, OR-Tools CP-SAT solver</div></div>
+      <div class="glass layer core" data-a><div class="lbl"><small>Core data</small>Supabase Postgres</div><div class="what">EXCLUDE no-overlap constraint, single transactional write, Realtime, pgvector</div></div>
+      <div class="glass layer" data-a><div class="lbl"><small>Trust layer</small>Auth &amp; CI</div><div class="what">Supabase Auth, Row Level Security, signed QR tokens, append-only audit log, GitHub Actions</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 -->
+<section class="slide" data-id="people" aria-label="People first">
+  <div class="frame">
+    <div class="stack span-12">
+      <div class="kicker" data-a>People first</div>
+      <h2 data-a>Every role gets a clearer campus</h2>
+    </div>
+    <div class="span-12 grid-cards">
+      <div class="glass card tilt" data-a><h3>Students</h3><p class="small">Find a quiet room or lab in seconds, book tutorial rooms instantly, request the rest, swipe through free spaces on a phone.</p></div>
+      <div class="glass card tilt" data-a><h3>Faculty</h3><p class="small">Classes and exams in labs and halls confirm instantly. Calendar feed, QR check-in, early release.</p></div>
+      <div class="glass card tilt" data-a><h3>Approvers</h3><p class="small">A queue with SLA timers, one-click approve or reject, counter-proposals and blackout rules for exam weeks.</p></div>
+      <div class="glass card tilt" data-a><h3>Admins &amp; management</h3><p class="small">Utilisation heatmap, ghost-booking rate, forecasts, solar vs room load, role assignment.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 -->
+<section class="slide" data-id="proof" aria-label="Proof">
+  <div class="frame">
+    <div class="stack span-12">
+      <div class="kicker" data-a>Proof, not promises</div>
+      <h2 data-a>Built, tested and run end to end</h2>
+    </div>
+    <div class="span-12 tiles" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <div class="glass tile" data-a><span class="num" data-to="35">0</span><span class="lbl">automated tests: engine, real Postgres, QR security, browser demo, solver</span></div>
+      <div class="glass tile good" data-a><span class="num">200→1</span><span class="lbl">parallel requests for one slot, through the real migration</span></div>
+      <div class="glass tile" data-a><span class="num" data-to="6">0</span><span class="lbl">end-to-end browser tests walking the 3-minute demo</span></div>
+      <div class="glass tile" data-a><span class="num" data-to="3">0</span><span class="lbl">bugs caught by those tests before anyone saw them</span></div>
+    </div>
+    <div class="span-12 chips" data-a><span class="pill">Vitest</span><span class="pill">PGlite (Postgres in WASM)</span><span class="pill">Playwright</span><span class="pill">pytest</span><span class="pill">GitHub Actions on every push</span><span class="pill">English · हिन्दी · मराठी</span><span class="pill">Keyboard + screen-reader map</span></div>
+  </div>
+</section>
+
+<!-- 17 -->
+<section class="slide" data-id="payoff" aria-label="The payoff">
+  <div class="frame">
+    <div class="stack span-6">
+      <div class="kicker" data-a>The payoff</div>
+      <h2 data-a>Better space decisions, less operational friction</h2>
+      <div class="steps">
+        <div class="glass step" data-a><span class="n">−</span><div><h3>Fewer conflicts</h3><p class="small">Clashes are refused at the database, settled by the engine and explained.</p></div></div>
+        <div class="glass step" data-a><span class="n">+</span><div><h3>Higher utilisation</h3><p class="small">Ghost bookings released, swaps instead of cancellations, waitlists that fill gaps.</p></div></div>
+        <div class="glass step" data-a><span class="n">⏱</span><div><h3>Less admin time</h3><p class="small">Instant approval for routine bookings; deadlines and escalation for the rest.</p></div></div>
+      </div>
+      <div data-a><div class="mono" style="color:var(--teal);margin-bottom:8px">NEXT</div><div class="chips"><span class="pill">Public deployment</span><span class="pill">Scheduled timers</span><span class="pill">Meaning-based room search</span><span class="pill">IoT occupancy sensors</span><span class="pill">Native mobile app</span></div></div>
+    </div>
+    <div class="span-6 photo" data-a data-depth="10" style="background-image:url('assets/campus-paths.jpg');min-height:clamp(320px,48vw,560px)" role="img" aria-label="Aerial view of the campus with glowing paths between buildings"></div>
+  </div>
+</section>
+
+<!-- 18 -->
+<section class="slide" data-id="demo" aria-label="Live demo">
+  <div class="frame">
+    <div class="span-5 photo" data-a data-depth="10" style="background-image:url('assets/courtyard-glow.jpg');min-height:clamp(320px,46vw,560px)" role="img" aria-label="Courtyard with a glowing path"></div>
+    <div class="stack span-7">
+      <div class="kicker" data-a>Live demo</div>
+      <h2 data-a>One end-to-end flow</h2>
+      <div class="trail" data-a><span class="pill">Sign in</span><span class="arr">→</span><span class="pill">Map</span><span class="arr">→</span><span class="pill">Room</span><span class="arr">→</span><span class="pill">Availability</span><span class="arr">→</span><span class="pill" style="background:var(--free);color:#fff;border-color:transparent">Book</span></div>
+      <p class="lede" data-a>Then: an AI booking, an exam bumping a club with an explanation, a QR no-show release, and Simulate Chaos ending at zero double bookings.</p>
+      <p data-a style="font-family:var(--f-display);font-weight:700;font-size:clamp(20px,2vw,28px);letter-spacing:-.02em;line-height:1.25">XIE Spaces turns campus space from static infrastructure into an intelligent, connected resource.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<nav class="navbar" aria-label="Slides">
+  <button id="prev" aria-label="Previous slide">‹</button>
+  <div class="dots" id="dots"></div>
+  <span class="hint">← → to move · F fullscreen</span>
+  <button id="next" aria-label="Next slide">›</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+const GEO = __GEO__;
+(() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const hasG = typeof gsap !== "undefined";
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const slides = $$(".slide");
+  const N = slides.length;
+  const pad = (n) => String(n).padStart(2, "0");
+
+  // ---------------- floor plans from the real geometry ----------------
+  const KIND = { lh: "#e8d3e3", tutorial: "#e8d3e3", seminar: "#e8d3e3", lab: "#d3e0ec", study: "#d7e6cf", meeting: "#f1e0bf", office: "#f1e0bf", common: "#f1e0bf", medical: "#f1e0bf", wc: "#ffffff", stairs: "#ffffff", passage: "#e7e3dc", lobby: "#e7e3dc", shaft: "#dfe5e8" };
+  const C = GEO.court;
+  function floorSVG(fi, opts = {}) {
+    const rooms = GEO.floors[fi];
+    let s = `<rect x="0" y="0" width="1310" height="790" fill="#e7e3dc" stroke="#24444f" stroke-width="10"/>`;
+    s += `<path d="M${C.x} ${C.y + C.h + 8}V${C.y}H${C.x + C.w}V${C.y + C.h + 8}Z" fill="#eaf4ea" stroke="#24444f" stroke-width="10"/>`;
+    s += `<rect x="${C.x + 20}" y="${C.y + 20}" width="${C.w - 40}" height="${C.h - 20}" fill="none" stroke="#6b8f5e" stroke-dasharray="6 5" stroke-width="1.5"/>`;
+    for (const [id, short, kind, bookable, cap, x, y, w, h] of rooms) {
+      const fill = opts.state && bookable ? "#dcf3e3" : KIND[kind] || "#fff";
+      s += `<g data-room="${id}"><rect class="rm" x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="#24444f" stroke-width="3"/>`;
+      if (opts.labels && h >= 60 && w >= 60) s += `<text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle" font-family="Heebo, sans-serif" font-size="${w > 150 ? 20 : 14}" fill="#24444f">${short}</text>`;
+      if (opts.state && bookable) s += `<circle class="vac" cx="${x + w / 2}" cy="${y + h - (h < 75 ? h / 2 : 22)}" r="9" fill="#16a34a" stroke="#fff" stroke-width="3"/>`;
+      s += `</g>`;
+    }
+    return s;
+  }
+  function plates(el, gap) {
+    el.innerHTML = [0, 1, 2].map((i) => `<div class="plate" data-i="${i}" style="transform:translateZ(${i * gap}px)"><svg viewBox="-8 -8 1326 806" aria-hidden="true">${floorSVG(i)}</svg><span class="tag">LEVEL ${i + 1}</span></div>`).join("");
+  }
+  plates($("#heroPlates"), 70);
+  plates($("#campusPlates"), 18);
+  $("#liveMap").innerHTML = floorSVG(0, { state: true, labels: true });
+  $("#morphMap").innerHTML = floorSVG(0, { labels: true });
+  $("#chaosMap").innerHTML = floorSVG(1, { state: true });
+
+  // ---------------- orbit (platform) ----------------
+  (() => {
+    const svg = $("#orbit"), cx = 320, cy = 230;
+    const items = [["Live 3-floor map", "real-time states"], ["Booking + approvals", "pools, SLA timers"], ["Conflict engine", "scores, explains"], ["AI assistant", "text, voice, chat apps"], ["QR check-in", "ghost bookings released"], ["Analytics", "heatmaps, forecast"]];
+    let s = `<defs><radialGradient id="hub" cx="50%" cy="40%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#d6ecf1"/></radialGradient></defs>`;
+    s += `<ellipse cx="${cx}" cy="${cy}" rx="250" ry="170" fill="none" stroke="rgba(14,143,168,.35)" stroke-dasharray="3 7"/>`;
+    s += `<g id="spokes"></g><circle cx="${cx}" cy="${cy}" r="78" fill="url(#hub)" stroke="rgba(36,68,79,.18)"/><circle cx="${cx}" cy="${cy}" r="92" fill="none" stroke="#24e0d0" stroke-width="1.5" opacity=".7"/>`;
+    s += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" font-family="Montserrat, sans-serif" font-weight="800" font-size="22" fill="#24444f">XIE Spaces</text><text x="${cx}" y="${cy + 18}" text-anchor="middle" font-family="Heebo, sans-serif" font-size="12.5" fill="#5b7480">one connected platform</text>`;
+    items.forEach(([a, b], i) => {
+      s += `<g class="sat" data-i="${i}"><circle r="34" fill="rgba(255,255,255,.95)" stroke="rgba(36,68,79,.16)"/><circle r="6" fill="${i % 2 ? "#176fc1" : "#0e8fa8"}"/><text y="52" text-anchor="middle" font-family="Montserrat, sans-serif" font-weight="700" font-size="13" fill="#24444f">${a}</text><text y="68" text-anchor="middle" font-family="Heebo, sans-serif" font-size="11.5" fill="#5b7480">${b}</text></g>`;
+    });
+    svg.innerHTML = s;
+    const sats = $$(".sat", svg), spokes = $("#spokes", svg);
+    let t0 = 0;
+    const place = (a) => {
+      let lines = "";
+      sats.forEach((g, i) => {
+        const ang = a + (i / sats.length) * Math.PI * 2;
+        const x = cx + Math.cos(ang) * 250, y = cy + Math.sin(ang) * 170 - 20, z = (Math.sin(ang) + 1) / 2;
+        g.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${(0.82 + z * 0.22).toFixed(3)})`);
+        g.style.opacity = (0.65 + z * 0.35).toFixed(2);
+        lines += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${(y + 20).toFixed(1)}" stroke="rgba(23,111,193,${(0.08 + z * 0.22).toFixed(2)})" stroke-width="1.2"/>`;
+      });
+      spokes.innerHTML = lines;
+    };
+    place(-Math.PI / 2);
+    window.__orbit = (dt) => { t0 += dt * 0.00012; place(-Math.PI / 2 + t0); };
+  })();
+
+  // ---------------- QR-like code ----------------
+  function qr(seed) {
+    let h = 2166136261 >>> 0; const rnd = () => ((h = Math.imul(h ^ seed++, 16777619)) >>> 0) / 4294967296;
+    let s = "";
+    for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+      const finder = (x < 8 && y < 8) || (x > 16 && y < 8) || (x < 8 && y > 16);
+      if (!finder && rnd() < 0.47) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="#24444f"/>`;
+    }
+    for (const [fx, fy] of [[0, 0], [18, 0], [0, 18]]) s += `<rect x="${fx + .5}" y="${fy + .5}" width="6" height="6" fill="none" stroke="#24444f"/><rect x="${fx + 2}" y="${fy + 2}" width="3" height="3" fill="#24444f"/>`;
+    $("#qr").innerHTML = s;
+  }
+  qr(7);
+
+  // ---------------- per-slide scenes ----------------
+  const scenes = {};
+  const loops = new Set();
+  const live = (fn) => { loops.add(fn); return () => loops.delete(fn); };
+
+  scenes.hero = () => {
+    if (!hasG || reduce) return;
+    const pl = $$("#heroPlates .plate");
+    gsap.fromTo(pl, { z: 0, opacity: 0 }, { z: (i) => i * 70, opacity: 1, duration: 1.6, stagger: 0.12, ease: "expo.out" });
+    return live((dt, t) => { pl.forEach((p, i) => gsap.set(p, { z: i * 70 + Math.sin(t / 900 + i) * 10 })); });
+  };
+  scenes.platform = () => live((dt) => window.__orbit(reduce ? 0 : dt));
+  scenes.campus = () => {
+    if (!hasG || reduce) return;
+    const pl = $$("#campusPlates .plate");
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 1.2, yoyo: true });
+    tl.fromTo(pl, { z: (i) => i * 18 }, { z: (i) => i * 120, duration: 1.8, ease: "expo.inOut", stagger: 0.06 });
+    return () => tl.kill();
+  };
+  scenes.live = () => {
+    const rooms = $$("#liveMap g[data-room]").filter((g) => g.querySelector(".vac"));
+    const states = [["#dcf3e3", "#16a34a"], ["#fbd9d6", "#dc2626"], ["#fbe7c4", "#d97706"], ["#d6e4fb", "#2563eb"], ["#fdecea", "#f19a92"], ["#ede4fb", "#7c3aed"], ["#fdf3d7", "#ca8a04"]];
+    let acc = 0, tm = 750;
+    const knob = $("#scrubKnob"), fill = $("#scrubFill"), label = $("#scrubTime");
+    return live((dt, t) => {
+      const p = (Math.sin(t / 2600) + 1) / 2, min = 480 + Math.round((p * 720) / 15) * 15;
+      knob.style.left = fill.style.width = (p * 100).toFixed(1) + "%";
+      label.textContent = `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+      if (reduce || (acc += dt) < tm) return;
+      acc = 0;
+      const g = rooms[Math.floor(Math.random() * rooms.length)], [f, d] = states[Math.floor(Math.random() * states.length)];
+      const r = g.querySelector(".rm"), v = g.querySelector(".vac");
+      if (hasG) { gsap.to(r, { attr: { fill: f }, duration: 0.5 }); gsap.fromTo(v, { attr: { r: 18 }, fill: d }, { attr: { r: 9 }, duration: 0.6, ease: "back.out(3)" }); }
+      else { r.setAttribute("fill", f); v.setAttribute("fill", d); }
+    });
+  };
+  scenes.flow = () => {
+    if (!hasG || reduce) return;
+    const card = $("#morphCard"), wrap = card.parentElement, room = $('#morphMap g[data-room="F1-13"] .rm');
+    const hold = $("#holdT");
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 1.6, delay: 0.6 });
+    const from = () => { const w = wrap.getBoundingClientRect(), r = room.getBoundingClientRect(), c = card.getBoundingClientRect(); return { x: r.left - c.left, y: r.top - c.top, width: r.width, height: r.height }; };
+    gsap.set(room, { attr: { fill: "#d7e6cf" } });
+    tl.to(room, { attr: { fill: "#176fc1" }, duration: 0.3 })
+      .fromTo(card, { x: () => from().x, y: () => from().y, width: () => from().width, height: () => from().height, borderRadius: 4, opacity: 0.6 }, { x: 0, y: 0, width: () => Math.min(300, wrap.clientWidth * 0.62), height: "auto", borderRadius: 16, opacity: 1, duration: 0.9, ease: "expo.inOut", immediateRender: false })
+      .fromTo(card.querySelectorAll(".body > *"), { y: 12, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.07, duration: 0.4, ease: "back.out(1.6)" }, "-=0.35")
+      .to({ s: 90 }, { s: 84, duration: 2.4, ease: "none", onUpdate() { hold.textContent = `held ${Math.round(this.targets()[0].s)}s`; } })
+      .to(card.querySelector(".btn-book"), { scale: 0.94, duration: 0.12, yoyo: true, repeat: 1 })
+      .add(() => { card.querySelector(".btn-book").textContent = "Booked ✓"; })
+      .to(room, { attr: { fill: "#fbd9d6" }, duration: 0.4 }, "+=0.2")
+      .to({}, { duration: 1.2 })
+      .to(card, { opacity: 0, y: 16, duration: 0.4 })
+      .add(() => { card.querySelector(".btn-book").textContent = "Confirm booking"; gsap.set(room, { attr: { fill: "#d7e6cf" } }); });
+    return () => { tl.kill(); gsap.set(card, { clearProps: "all" }); };
+  };
+  scenes.guarantee = () => {
+    const cv = $("#particles"), ctx = cv.getContext("2d"), box = cv.parentElement;
+    const DPR = Math.min(2, devicePixelRatio || 1);
+    let W = 0, H = 0;
+    const size = () => { W = box.clientWidth; H = box.clientHeight; cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); };
+    size();
+    const pts = Array.from({ length: 200 }, (_, i) => ({ x: Math.random() * W, y: Math.random() * H * 0.8, vx: 0, vy: 0, win: i === 0, done: false, alt: i % 3 }));
+    let t = 0;
+    const stop = live((dt) => {
+      if (box.clientWidth !== W) size();
+      t += reduce ? 2000 : dt;
+      const sx = W * 0.5, sy = H * 0.22;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = "rgba(23,111,193,.07)"; ctx.strokeStyle = "#16a34a"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(sx - 58, sy - 22, 116, 44, 10) : ctx.rect(sx - 58, sy - 22, 116, 44); ctx.fill(); ctx.stroke();
+      ctx.font = "600 12px Montserrat, sans-serif"; ctx.fillStyle = "#24444f"; ctx.textAlign = "center"; ctx.fillText("F2-10 · 2:30 PM", sx, sy - 30);
+      let left = 0;
+      pts.forEach((p, i) => {
+        let tx, ty;
+        if (p.win) { tx = sx; ty = sy; }
+        else if (t < 1900) { tx = sx + Math.cos(i) * 40; ty = sy + Math.sin(i) * 26; }
+        else { const lane = [W * 0.18, W * 0.5, W * 0.82][p.alt]; tx = lane + Math.cos(i * 1.7) * 46; ty = H * 0.5 + Math.sin(i * 2.3) * 18; }
+        p.x += (tx - p.x) * (reduce ? 1 : 0.06 + (i % 7) * 0.004); p.y += (ty - p.y) * (reduce ? 1 : 0.06 + (i % 5) * 0.004);
+        if (!p.win && t > 1900) left++;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.win ? 7 : 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = p.win ? "#16a34a" : t < 1900 ? "rgba(23,111,193,.75)" : "rgba(217,119,6,.75)"; ctx.fill();
+      });
+      if (t > 1900) {
+        ctx.font = "500 11.5px Heebo, sans-serif"; ctx.fillStyle = "#5b7480";
+        ["alternatives offered", "negotiation opened", "waitlisted"].forEach((s, i) => ctx.fillText(s, [W * 0.18, W * 0.5, W * 0.82][i], H * 0.5 + 40));
+      }
+      if (t > 5200) { t = 0; pts.forEach((p) => { p.x = Math.random() * W; p.y = Math.random() * H * 0.8; }); }
+    });
+    return stop;
+  };
+  scenes.engine = () => {
+    const el = $("#bars");
+    $$(".bar-row", el).forEach((r) => r.remove());
+    const rows = [["Total", 96, 49], ["Purpose ×.40", 100, 40], ["Role ×.20", 100, 40], ["Urgency ×.15", 86, 86], ["Fairness ×.15", 0, 20], ["Usage ×.10", 100, 72]];
+    rows.forEach(([n, a, b]) => {
+      const d = document.createElement("div"); d.className = "bar-row";
+      d.innerHTML = `<span style="${n === "Total" ? "font-weight:700" : "color:var(--ink-soft)"}">${n}</span><div style="display:grid;gap:4px"><div class="bar-track"><i style="width:${a}%;background:var(--blue)"></i></div><div class="bar-track"><i style="width:${b}%;background:var(--pend)"></i></div></div><span class="v">${a}<br><span style="color:var(--pend)">${b}</span></span>`;
+      el.appendChild(d);
+    });
+    if (hasG && !reduce) gsap.from($$(".bar-track i", el), { scaleX: 0, transformOrigin: "0 50%", duration: 1.1, stagger: 0.06, ease: "expo.out", delay: 0.3 });
+  };
+  scenes.collab = () => {
+    const box = $("#chat");
+    $$(".msg", box).forEach((m) => m.remove());
+    const script = [["them", "Demo Approver", "Hi! I need the Conference Room for an academic class at 2:30. Is there any flexibility on your booking?"], ["me", "Demo Faculty", "I can move to 3:30 if that room is free."], ["them", "Demo Approver", "It is. Thank you!"], ["sys", "", "Accepted · Faculty shifted to 3:30 PM · Approver booked 2:30 PM · +15 points"]];
+    const timers = [];
+    script.forEach(([who, from, text], i) => timers.push(setTimeout(() => {
+      const m = document.createElement("div"); m.className = `msg ${who}`; m.innerHTML = (from ? `<small>${from}</small>` : "") + text; box.appendChild(m);
+      if (hasG && !reduce) gsap.from(m, { y: 18, opacity: 0, scale: 0.96, duration: 0.5, ease: "back.out(1.7)" });
+    }, reduce ? 0 : 500 + i * 1300)));
+    return () => timers.forEach(clearTimeout);
+  };
+  scenes.approvals = () => {
+    const ring = $("#slaRing"), txt = $("#slaText");
+    let t = 0;
+    return live((dt) => {
+      t = (t + (reduce ? 0 : dt)) % 6000;
+      const p = Math.min(1, t / 4500);
+      ring.setAttribute("stroke-dashoffset", (201 * p).toFixed(1));
+      ring.setAttribute("stroke", p >= 1 ? "#dc2626" : "#d97706");
+      txt.textContent = p >= 1 ? "escalated" : `${Math.ceil(4 * (1 - p) * 60)} min left`;
+    });
+  };
+  scenes.ghosts = () => {
+    let left = 60, acc = 0, seed = 7;
+    const meta = $("#qrMeta");
+    return live((dt) => {
+      if (reduce) return;
+      acc += dt;
+      if (acc > 70) { acc = 0; left--; if (left <= 0) { left = 60; qr(++seed); if (hasG) gsap.fromTo("#qr", { opacity: 0.2 }, { opacity: 1, duration: 0.4 }); } meta.textContent = `rotates in ${left}s`; }
+    });
+  };
+  scenes.ai = () => {
+    const q = "I need a hall for 80 people with a projector this Friday evening";
+    const typed = $("#typed"), pre = $("#intent"), opts = $("#opts");
+    typed.textContent = ""; pre.textContent = ""; opts.innerHTML = "";
+    const json = '{\n  "intent": "book",\n  "resource_type": "seminar",\n  "min_capacity": 80,\n  "tags": ["projector"],\n  "window": ["16:00", "20:00"],\n  "duration_minutes": 120,\n  "purpose": "club_event",\n  "confidence": 0.95\n}';
+    const cards = [["Seminar Hall", "Level 2 · 100 seats · projector, AV", "fit 95"], ["Lecture Hall 3", "Level 2 · 75 seats · smart board", "fit 41"], ["Courtyard Turf", "Outdoor · 120 · approval needed", "fit 37"]];
+    let i = 0, j = 0, phase = 0, acc = 0;
+    if (reduce) { typed.textContent = q; pre.textContent = json; }
+    return live((dt) => {
+      acc += dt;
+      if (phase === 0 && acc > 28) { acc = 0; typed.textContent = q.slice(0, ++i); if (i >= q.length) phase = 1; }
+      else if (phase === 1 && acc > 10) { acc = 0; j += 4; pre.textContent = json.slice(0, j); if (j >= json.length) { phase = 2; cards.forEach(([a, b, c], k) => { const d = document.createElement("div"); d.className = "glass opt"; d.innerHTML = `<strong>${a}</strong><span class="fit">${c}</span><span class="small" style="grid-column:1/-1">${b}</span>`; opts.appendChild(d); if (hasG && !reduce) gsap.from(d, { y: 26, opacity: 0, rotateX: -20, duration: 0.6, delay: k * 0.12, ease: "back.out(1.5)" }); }); } }
+      else if (phase === 2 && acc > 5200) { acc = 0; i = j = 0; phase = 0; typed.textContent = ""; pre.textContent = ""; opts.innerHTML = ""; }
+    });
+  };
+  const countUp = (root) => $$("[data-to]", root).forEach((el) => {
+    const to = +el.dataset.to;
+    if (!hasG || reduce) { el.textContent = to; return; }
+    const o = { v: 0 }; gsap.to(o, { v: to, duration: 1.6, delay: 0.3, ease: "expo.out", onUpdate: () => (el.textContent = Math.round(o.v)) });
+  });
+  scenes.chaos = (s) => {
+    countUp(s);
+    const rooms = $$("#chaosMap .rm"), cols = ["#dcf3e3", "#fbd9d6", "#fbe7c4", "#d6e4fb"];
+    let acc = 0;
+    return live((dt) => { if (reduce || (acc += dt) < 200) return; acc = 0; const r = rooms[Math.floor(Math.random() * rooms.length)]; const c = cols[Math.floor(Math.random() * cols.length)]; hasG ? gsap.fromTo(r, { attr: { fill: "#24e0d0" } }, { attr: { fill: c }, duration: 0.7 }) : r.setAttribute("fill", c); });
+  };
+  scenes.proof = (s) => countUp(s);
+  scenes.build = () => {
+    if (!hasG || reduce) return;
+    gsap.fromTo("#layers .layer", { rotateX: 55, z: -120, opacity: 0 }, { rotateX: 0, z: 0, opacity: 1, duration: 1, stagger: 0.1, ease: "expo.out", transformPerspective: 900, delay: 0.15 });
+  };
+
+  // ---------------- deck engine ----------------
+  let cur = 0, busy = false, stopScene = null;
+  const dots = $("#dots");
+  slides.forEach((s, i) => { const b = document.createElement("button"); b.setAttribute("aria-label", `Go to slide ${i + 1}: ${s.getAttribute("aria-label")}`); b.onclick = () => go(i); dots.appendChild(b); });
+  const chrome = () => {
+    $("#counter").textContent = `${pad(cur + 1)} / ${pad(N)}`;
+    $$("button", dots).forEach((b, i) => b.setAttribute("aria-current", i === cur ? "true" : "false"));
+    $("#progress").style.transform = `scaleX(${(cur + 1) / N})`;
+    try { history.replaceState(null, "", `#s${cur + 1}`); } catch (e) {}
+  };
+  const enter = (s) => {
+    if (stopScene) { stopScene(); stopScene = null; }
+    const fn = scenes[s.dataset.id];
+    const r = fn ? fn(s) : null;
+    stopScene = typeof r === "function" ? r : null;
+    if (hasG && !reduce) gsap.fromTo($$("[data-a]", s), { y: 34, opacity: 0, filter: "blur(6px)" }, { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.9, stagger: 0.06, ease: "expo.out", delay: 0.15, clearProps: "filter" });
+  };
+  function go(n, dirHint) {
+    n = Math.max(0, Math.min(N - 1, n));
+    if (n === cur || busy) return;
+    const out = slides[cur], inn = slides[n], dir = dirHint || (n > cur ? 1 : -1);
+    cur = n; chrome();
+    inn.classList.add("is-active"); inn.scrollTop = 0;
+    if (!hasG || reduce) { out.classList.remove("is-active"); enter(inn); return; }
+    busy = true;
+    gsap.to(out, { z: -420, rotateY: dir * -16, xPercent: dir * -18, opacity: 0, filter: "blur(10px)", duration: 0.8, ease: "expo.inOut", onComplete: () => { out.classList.remove("is-active"); gsap.set(out, { clearProps: "all" }); } });
+    gsap.fromTo(inn, { z: 380, rotateY: dir * 14, xPercent: dir * 22, opacity: 0, filter: "blur(10px)" }, { z: 0, rotateY: 0, xPercent: 0, opacity: 1, filter: "blur(0px)", duration: 1.05, ease: "expo.out", delay: 0.12, clearProps: "transform,filter", onComplete: () => { busy = false; } });
+    gsap.to("#path1", { attr: { d: dir > 0 ? "M-40 700 C 320 820, 520 600, 820 720 S 1240 520, 1660 600" : "M-40 760 C 300 640, 420 820, 760 690 S 1180 420, 1660 520" }, duration: 1.4, ease: "expo.inOut" });
+    enter(inn);
+  }
+  const next = () => go(cur + 1, 1), prev = () => go(cur - 1, -1);
+  $("#next").onclick = next; $("#prev").onclick = prev;
+  addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest("button, a, input")) return;
+    if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); next(); }
+    else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); prev(); }
+    else if (e.key === "Home") go(0); else if (e.key === "End") go(N - 1);
+    else if (e.key.toLowerCase() === "f") { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.())?.catch?.(() => {}); }
+  });
+  let tx = 0, ty = 0;
+  addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  addEventListener("touchend", (e) => { const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.4) (dx < 0 ? next : prev)(); }, { passive: true });
+  let wheelLock = 0;
+  addEventListener("wheel", (e) => {
+    const s = slides[cur], atEnd = s.scrollTop + s.clientHeight >= s.scrollHeight - 2, atTop = s.scrollTop <= 0;
+    if (Date.now() < wheelLock || Math.abs(e.deltaY) < 24) return;
+    if (e.deltaY > 0 && atEnd) { wheelLock = Date.now() + 1100; next(); }
+    else if (e.deltaY < 0 && atTop) { wheelLock = Date.now() + 1100; prev(); }
+  }, { passive: true });
+
+  // pointer parallax + 3D tilt (desktop only)
+  if (!reduce && matchMedia("(pointer: fine)").matches) {
+    addEventListener("pointermove", (e) => {
+      const nx = e.clientX / innerWidth - 0.5, ny = e.clientY / innerHeight - 0.5;
+      const s = slides[cur];
+      $$("[data-depth]", s).forEach((el) => { const d = +el.dataset.depth; el.style.transform = `translate3d(${nx * d}px, ${ny * d}px, 0)`; });
+      $$(".tower .plates", s).forEach((p) => (p.style.transform = `rotateX(${58 - ny * 8}deg) rotateZ(${-34 + nx * 10}deg)`));
+    });
+    $$(".tilt").forEach((el) => {
+      el.addEventListener("pointermove", (e) => { const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5; el.style.transform = `perspective(900px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg) translateZ(6px)`; });
+      el.addEventListener("pointerleave", () => { el.style.transform = ""; });
+    });
+  }
+
+  // one RAF drives every live scene
+  let last = performance.now();
+  const frame = (t) => { const dt = Math.min(64, t - last); last = t; loops.forEach((fn) => fn(dt, t)); requestAnimationFrame(frame); };
+  requestAnimationFrame(frame);
+
+  addEventListener("hashchange", () => { const h = /^#s(\d+)$/.exec(location.hash); if (h && +h[1] - 1 !== cur) go(+h[1] - 1); });
+  const m = /^#s(\d+)$/.exec(location.hash);
+  const start = m ? Math.min(N, Math.max(1, +m[1])) - 1 : 0;
+  if (start) { slides[0].classList.remove("is-active"); slides[start].classList.add("is-active"); cur = start; }
+  chrome(); enter(slides[cur]);
+  if (hasG && !reduce) gsap.from(".paths path", { strokeDasharray: 2400, strokeDashoffset: 2400, duration: 2.4, ease: "power2.out" });
+})();
+</script>
